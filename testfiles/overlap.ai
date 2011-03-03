@@ -1,0 +1,76 @@
+%!PS-Adobe-3.0
+%%Creator: Adobe Illustrator(TM) 7.0 Exported from CorelDRAW 9.
+%%Title: (CorelDRAW! 9.0 Export)
+%%CreationDate:(Unknown)
+%%BoundingBox:148 315 451 733
+%%DocumentProcessColors: Cyan Magenta Yellow Black
+%%DocumentSuppliedResources: procset Adobe_level2_AI5 1.2 0
+%%+ procset Adobe_typography_AI5 1.0 1
+%%+ procset Adobe_ColorImage_AI6 1.1 0
+%%+ procset Adobe_Illustrator_AI5 1.2 0
+%%+ procset Adobe_cshow 2.0 8
+%AI3_ColorUsage: Color
+%AI3_TemplateBox:306 396 306 396
+%AI3_DocumentPreview: None
+%AI5_NumLayers: 1
+%AI5_FileFormat 2.0
+%%EndComments
+%%BeginProlog
+%%IncludeResource: procset Adobe_level2_AI5 1.2 0
+%%IncludeResource: procset Adobe_typography_AI5 1.0 1
+%%IncludeResource: procset Adobe_ColorImage_AI6 1.1 0
+%%IncludeResource: procset Adobe_Illustrator_AI5 1.2 0
+%%IncludeResource: procset Adobe_cshow 2.0 8
+%%EndProlog
+%%BeginSetup
+Adobe_level2_AI5 /initialize get exec
+Adobe_cshow /initialize get exec
+Adobe_Illustrator_AI5_vars Adobe_Illustrator_AI5 Adobe_typography_AI5 /initialize get exec
+Adobe_ColorImage_AI6 /initialize get exec
+Adobe_Illustrator_AI5 /initialize get exec
+%%EndSetup
+%AI5_BeginLayer
+1 1 1 1 0 0 0 0 0 0 Lb
+(Layer 1) Ln
+0 R
+0.0000 0.0000 0.0000 1.0000 K
+0 J
+0 j
+0.2160 w
+[]0 d
+299.3760 577.5840 m
+374.9760 527.4000 L
+450.7200 477.1440 L
+421.7760 396.0000 L
+392.9040 314.8560 L
+299.3760 314.8560 L
+205.7760 314.8560 L
+176.9040 396.0000 L
+147.9600 477.1440 L
+223.7040 527.4000 L
+299.3760 577.5840 L
+s
+0 R
+0.0000 0.0000 0.0000 1.0000 K
+0 J
+0 j
+0.2160 w
+[]0 d
+295.1280 732.5280 m
+357.0480 732.5280 407.6640 683.8560 407.6640 624.1680 c
+407.6640 564.4800 357.0480 515.8080 295.1280 515.8080 c
+233.1360 515.8080 182.5200 564.4800 182.5200 624.1680 c
+182.5200 683.8560 233.1360 732.5280 295.1280 732.5280 c
+s
+LB
+%AI5_EndLayer--
+%%PageTrailer
+gsave annotatepage grestore showpage
+%%Trailer
+Adobe_Illustrator_AI5 /terminate get exec
+Adobe_ColorImage_AI6 /terminate get exec
+Adobe_typography_AI5 /terminate get exec
+Adobe_cshow /terminate get exec
+Adobe_level2_AI5 /terminate get exec
+%%EOF
+

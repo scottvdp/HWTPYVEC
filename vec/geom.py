@@ -1,0 +1,247 @@
+# ##### BEGIN GPL LICENSE BLOCK #####
+#
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation; either version 2
+#  of the License, or (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software Foundation,
+#  Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+# ##### END GPL LICENSE BLOCK #####
+
+"""Geometry classes and operations.
+representation (Art), and functions for cleaning them up.
+"""
+
+__author__ = "howard.trickey@gmail.com"
+
+
+# distances less than about DISTTOL will be considered
+# essentially zero
+DISTTOL = 1e-3
+INVDISTTOL = 1e3
+
+
+class Points(object):
+  """Container of points without duplication, each mapped to an int.
+
+  Points are either have dimension at least 2, maybe more.
+
+  Implementation:
+  In order to efficiently find duplicates, we quantize the points
+  to triples of ints and map from quantized triples to vertex
+  index.  When searching to see if a point already exists, we
+  check each of the 9 buckets for (x, y) with x and y within
+  1 of the given quantization.
+  For 3d coordinates, we require exact match on
+  quantized z, since we control z ourselves in  all our
+  applications of this library.
+
+  Attributes:
+    pos: list of tuple of float - coordinates indexed by
+        vertex number
+    invmap: dict of (int, int, int) to int - quantized coordinates
+        to vertex number map
+  """
+
+  def __init__(self, initlist = []):
+    self.pos = []
+    self.invmap = dict()
+    for p in initlist:
+      self.AddPoint(p)
+
+  @staticmethod
+  def Quantize(p):
+    """Quantize the float tuple into an int tuple.
+
+    Args:
+      p: tuple of float
+    Returns:
+      tuple of int - scaled by INVDISTTOL and rounded p
+    """
+
+    return tuple([int(round(v*INVDISTTOL)) for v in p])
+
+  def AddPoint(self, p):
+    """Add point p to the Points set and return vertex number.
+
+    If there is an existing point within DISTTOL in all dimensions,
+    don't add a new one but instead return existing index.
+
+    Args:
+      p: tuple of float - coordinates (2-tuple or 3-tuple)
+    Returns:
+      int - the vertex number of added (or existing) point
+    """
+
+    qp = Points.Quantize(p)
+    qx = qp[0]
+    qy = qp[1]
+    for i in range(-1, 2):
+      for j in range(-1, 2):
+        tryqp = (qx+i, qy+j) + qp[2:]
+        if tryqp in self.invmap:
+          return self.invmap[tryqp]
+    self.invmap[qp] = len(self.pos)
+    self.pos.append(p)
+    return len(self.pos)-1
+
+  def AddPoints(self, points):
+    """Add another set of points to this set.
+
+    We need to return a mapping from indices
+    in the argument points space into indices
+    in this point space.
+
+    Args:
+      points: Points - to union into this set
+    Returns:
+      list of int: maps added indices to new ones
+    """
+
+    vmap = [ 0 ] * len(points.pos)
+    for i in range(len(points.pos)):
+      vmap[i] = self.AddPoint(points.pos[i])
+    return vmap
+
+  def AddZCoord(self, z):
+    """Return a new Points that is copy of this but with a z coordinate.
+
+    Assumes the coordinates are currently 2d.
+
+    Args:
+      z: the value of the z coordinate to add
+    Returns:
+      Points - copy of self, but with a z-coordinate added
+    """
+
+    assert(len(self.pos) == 0 or len(self.pos[0]) == 2)
+    ans = Points()
+    for (x,y) in self.pos:
+      ans.AddPoint((x, y, z))
+    return ans
+
+class PolyArea(object):
+  """Contains a Polygonal Area (polygon with possible holes).
+
+  A polygon is a list of vertex ids, each an index given by
+  a Points object. The list represents a CCW-oriented
+  outer boundary (implicitly closed).
+  If there are holes, they are lists of CW-oriented vertices
+  that should be contained in the outer boundary.
+
+  Attributes:
+    points: Points
+    poly: list of vertex ids
+    holes: list of lists of vertex ids (each a hole in poly)
+    color: (float, float, float)- rgb color used to fill
+  """
+
+  def __init__(self, points = None, poly = None, holes = None):
+    self.points = points if points else Points()
+    self.poly = poly if poly else []
+    self.holes = holes if holes else []
+    self.color = (0.0, 0.0, 0.0)
+
+  def AddHole(self, holepa):
+    """Add a PolyArea's poly as a hole of self.
+
+    Need to reverse the contour and
+    adjust the the point indexes and self.points.
+
+    Args:
+      holepa: PolyArea
+    """
+
+    vmap = self.points.AddPoints(holepa.points)
+    holepoly = [ vmap[i] for i in holepa.poly ]
+    holepoly.reverse()
+    self.holes.append(holepoly)
+
+
+def ApproxEqualPoints(p, q):
+  """Return True if p and q are approximately the same points.
+
+  Args:
+    p: n-tuple of float
+    q: n-tuple of float
+  Returns:
+    bool - True if the 1-norm <= DISTTOL
+  """
+
+  for i in range(len(p)):
+    if abs(p[i] - q[i]) > DISTTOL:
+      return False
+    return True
+
+
+def PointInside(v, a, points):
+  """Return 1, 0, or -1 as v is inside, on, or outside polygon.
+
+  Cf. Eric Haines ptinpoly in Graphics Gems IV.
+
+  Args:
+    v : (float, float) - coordinates of a point
+    a : list of vertex indices defining polygon (assumed CCW)
+    points: Points - to get coordinates for polygon
+  Returns:
+    1, 0, -1: as v is inside, on, or outside polygon a
+  """
+
+  (xv, yv) = v
+  (x0, y0) = points.pos[a[-1]]
+  if x0 == xv and y0 == yv:
+    return 0
+  yflag0 = y0 > yv
+  inside = False
+  n = len(a)
+  for i in range(0, n):
+    (x1, y1) = points.pos[a[i]]
+    if x1 == xv and y1 == yv:
+      return 0
+    yflag1 = y1 > yv
+    if yflag0 != yflag1:
+      xflag0 = x0 > xv
+      xflag1 = x1 > xv
+      if xflag0 == xflag1:
+        if xflag0:
+          inside = not inside
+      else:
+        z = x1 - (y1-yv)*(x0-x1)/(y0-y1)
+        if z >= xv:
+          inside = not inside
+    x0 = x1
+    y0 = y1
+    yflag0 = yflag1
+  if inside:
+    return 1
+  else:
+    return -1
+
+
+def SignedArea(polygon, points):
+  """Return the area of the polgon, positive if CCW, negative if CW.
+
+  Args:
+    polygon: list of vertex indices
+    points: Points
+  Returns:
+    float - area of polygon, positive if it was CCW, else negative
+  """
+
+  a = 0.0
+  n = len(polygon)
+  for i in range(0, n):
+    u = points.pos[polygon[i]]
+    v = points.pos[polygon[(i+1) % n]]
+    a += u[0]*v[1] - u[1]*v[0]
+  return 0.5*a
+
+
