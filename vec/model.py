@@ -110,21 +110,32 @@ class Model(object):
       f.write("\n")
     f.close()
 
+class ImportOptions(object):
+  """Contains options used to control model import.
 
-def ReadVecFileToModel(fname, quadrangulate, sublevel=1, scaled_side_target=4.0):
+  Attributes:
+    quadrangulate: bool - should n-gons be quadrangulated?
+    convert_options: art2polyarea.ConvertOptions -
+      options about how to convert vector files into
+      polygonal areas
+    scaled_side_target: float - scale model so that longest side
+      is this length, if > 0.
+    z_sep: float - amount to separate paths by in z direction
+  """
+
+  def __init__(self):
+    self.quadrangulate = True
+    self.convert_options = art2polyarea.ConvertOptions()
+    self.scaled_side_target = 4.0
+    self.z_sep = 0.0
+
+
+def ReadVecFileToModel(fname, options):
   """Read vector art file and convert to Model.
-
-  We only look at the filled non-white faces in the file.
-  If quadrangulate is True, faces are filled after first
-  finding other faces contained in them (forming holes).
-  We apply scale_and_center to the model before returning,
-  using the scaled_side_target, if it is greater than 0.
 
   Args:
     fname: string - the file to read
-    quadrangulate: bool - if True, faces are filled
-    sublevel: int - how many times to recurse on subdividing curves
-    scaled_side_target: float - scale so longest side is this length, if > 0.
+    options: ImportOptions - specifies some choices about import
   Returns:
     (Model, string): if there was a major problem, Model may be None.
       The string will be errors and warnings.
@@ -133,39 +144,38 @@ def ReadVecFileToModel(fname, quadrangulate, sublevel=1, scaled_side_target=4.0)
   art = vecfile.ParseVecFile(fname)
   if art is None:
     return (None, "Problem reading file or unhandled type")
-  return ArtToModel(art, quadrangulate, sublevel, scaled_side_target)
+  return ArtToModel(art, options)
 
 
-def ArtToModel(art, quadrangulate, sublevel = 1, scaled_side_target = 4.0):
+def ArtToModel(art, options):
   """Convert an Art object into a Model object.
 
-  Look only at filled non-white faces.
+  We apply scale_and_center to the model before returning,
+  using options.scaled_side_target, if it is greater than 0.
 
   Args:
     art: vecfile.Art - the Art object to convert.
-    quadrangulate: bool - if True, faces are filled
-    sublevel: int - how many times to recurse on subdividing curves
-    scaled_side_target: float - scale so longest side is this length, if > 0.
+    options: ImportOptions - specifies some choices about import
   Returns:
     (Model, string): if there was a major problem, Model may be None.
       The string will be errors and warnings.
   """
 
-  pareas = art2polyarea.ArtToPolyAreas(art, sublevel)
+  pareas = art2polyarea.ArtToPolyAreas(art, options.convert_options)
   if not pareas:
     return (None, "No visible faces found")
-  model = PolyAreasToModel(pareas, quadrangulate, sublevel)
-  if model and scaled_side_target > 0:
-    model.scale_and_center(scaled_side_target)
+  model = PolyAreasToModel(pareas, options.quadrangulate)
+  if model and options.scaled_side_target > 0:
+    model.scale_and_center(options.scaled_side_target)
   return (model, "")
 
 
-def PolyAreasToModel(polyareas, quadrangulate, sublevel = 1):
+def PolyAreasToModel(polyareas, quadrangulate):
   """Convert a list of PolyAreas into a Model object.
   
   Args:
     polyareas: list of geom.PolyArea
-    sublevel: int - how many times to recurse on subdividing curves
+    quadrangulate: bool - whether or not to quadrangulate n-gons
   Returns:
     Model
   """
@@ -174,6 +184,7 @@ def PolyAreasToModel(polyareas, quadrangulate, sublevel = 1):
   if not polyareas:
     return m
   pfaces = []
+  pcolors = []
   for pa in polyareas:
     if quadrangulate:
       if len(pa.poly) == 0:
@@ -185,9 +196,13 @@ def PolyAreasToModel(polyareas, quadrangulate, sublevel = 1):
       vmap = m.points.AddPoints(pa.points)
       mapped_qpa = [ _maptuple(t, vmap) for t in qpa ]
       pfaces.extend(mapped_qpa)
+      pcolors.extend([ pa.color ] * len(mapped_qpa))
     else:
-      pfaces.extend(pa)
+      vmap = m.points.AddPoints(pa.points)
+      pfaces.append(pa.poly)
+      pcolors.append(pa.color)
   m.faces = pfaces
+  m.colors = pcolors
   if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
     m.points = m.points.AddZCoord(0.0)
   return m

@@ -146,9 +146,6 @@ class TestParseAIFile(unittest.TestCase):
       for pa in pareas:
         showfaces.ShowPolyArea(pa, f)
 
-  def test3dout(self):
-    self.ParseOneAI("ill/Illustratorfiles/3dout.ai")
-
   def test4pt(self):
     self.ParseOneAI("4pt.ai")
 
@@ -165,11 +162,11 @@ class TestParseAIFile(unittest.TestCase):
 class TestParsePDFFile(unittest.TestCase):
 
   def runTest(self):
-    art = vecfile.ParseVecFile("testfiles/2.pdf")
+    art = vecfile.ParseVecFile("testfiles/colors.ai")
     if SHOW:
       pareas = art2polyarea.ArtToPolyAreas(art, 0)
       for pa in pareas:
-        showfaces.ShowPolyArea(pa, "2.pdf")
+        showfaces.ShowPolyArea(pa, "colors.pdf")
 
 
 if __name__ == "__main__":

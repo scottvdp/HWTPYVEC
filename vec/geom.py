@@ -22,6 +22,7 @@ representation (Art), and functions for cleaning them up.
 
 __author__ = "howard.trickey@gmail.com"
 
+import math
 
 # distances less than about DISTTOL will be considered
 # essentially zero
@@ -245,3 +246,34 @@ def SignedArea(polygon, points):
   return 0.5*a
 
 
+def VecSub(a, b):
+  """Return vector a-b.
+
+  Args:
+    a: n-tuple of floats
+    b: n-tuple of floats
+  Returns:
+    n-tuple of floats - pairwise subtraction a-b
+  """
+
+  n = len(a)
+  assert(n == len(b))
+  return tuple([ a[i]-b[i] for i in range(n)])
+
+
+def VecLen(a):
+  """Return the Euclidean lenght of the argument vector.
+
+  Args:
+    a: n-tuple of floats
+  Returns:
+    float: the 2-norm of a
+  """
+
+  s = 0.0
+  for v in a:
+    s += v*v
+  return math.sqrt(s)
+
+
+  
