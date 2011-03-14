@@ -23,7 +23,10 @@ __author__ = "howard.trickey@gmail.com"
 
 import re
 import sys
-import zlib
+try:
+  import zlib
+except ImportError:
+  zlib = None
 
 # Python 2 and 3 differ in the type of result of indexing into
 # a 'bytes' string, so define a function that returns the
@@ -683,6 +686,8 @@ def GetPDFStreamContents(contentsobj, s, crossrefs):
         filters.append(o[1])
   for fname in filters:
     if fname == 'FlateDecode':
+      if not zlib:
+        raise RuntimeError("pdf decoding requires missing zlib module")
       ans = zlib.decompress(ans)
       ans = ans.decode()
     else:
