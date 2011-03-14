@@ -1,0 +1,24 @@
+Python Vector Art Utilities for 3d
+
+Blender Import AI and PDF Addon
+To install it: 
+
+ * Make sure you have a recent build of Blender 2.56 from graphicall.org (build 35333 or later works)
+ * Find your blender installation's addons directory (something like 2.56/scripts/addons under wherever you installed blender and make an io_vector dir
+ * Use the tobl to copy the required files to io_vector (and rename the init file); you'll need to edit the script to put the right destination in
+ * Start Blender, go to user Preferences, and enable Import-Export: Vector import
+
+To use it:
+ * From Blender's File menu, select Import > Vector files (.ai, .pdf)
+ * Perhaps change some of the Import Options in the tool panel for this addon.  Current options:
+   o Smoothness: the bigger the number, the closer the approximation to curves by line segments
+   o Scale: the number of Blender units for the longest side of the converted art
+   o Subdivision:
+     + Uniform: divide in half 'smoothness' times
+     + Adaptive: like Uniform, but divide until curves are flat enough
+     + Even: divide both curves and lines to try to make segments of uniform length
+   o Filled paths only: ignore paths that aren't filled
+   o Ignore white-filled: ignore paths that are filled with white (probably the background)
+   o Combine paths: look at all paths together to decide where the holes are (will be slower)
+   o Use colors: use the fill colors of solidly filled paths to make Blender materials for those polygons
+ * Select an Adobe Illustrator (any version should work) or PDF file that contains some shapes and hit the 'Import Vector' button
