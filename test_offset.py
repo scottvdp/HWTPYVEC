@@ -9,6 +9,7 @@ import math
 import tkinter
 import vec
 from vec import offset
+from vec import geom
 
 # Some test data sets
 
@@ -18,11 +19,11 @@ from vec import offset
 # 
 #    2
 # 0     1
-Vs1 = [(0.0,0.0),
+Vs1 = geom.Points([(0.0,0.0),
 	   (1.0,0.0),
 	   (0.5,0.25),
 	   (1.0,1.0),
-	   (0.0,1.0)]
+	   (0.0,1.0)])
 
 F1tri = [0,1,2]
 F1square = [0,1,3,4]
@@ -34,18 +35,18 @@ F1concave = [0,2,1,3,4]
 #         6  7
 #    8 9        10 11
 # 12      13 14       15
-Vs2 = [(0.0,1.0), (1.75,1.0),
+Vs2 = geom.Points([(0.0,1.0), (1.75,1.0),
 	   (0.25,0.75), (0.5,0.75), (1.25,0.75), (1.5,0.75),
 	   (0.75,0.5), (1.0,0.5),
 	   (0.25,0.25), (0.5,0.25), (1.25,0.25), (1.5,0.25),
-	   (0.0,0.0), (0.75,0.0), (1.0,0.0), (1.75,0.0)]
+	   (0.0,0.0), (0.75,0.0), (1.0,0.0), (1.75,0.0)])
 
 F2outer = [0,12,13,6,7,14,15,1]
 F2hole1 = [2,3,9,8]
 F2hole2 = [5,11,10,4]
 
 # 16 points in circle
-Vs3 = [(1.00000,0.0),
+Vs3 = geom.Points([(1.00000,0.0),
 	   (0.923880,0.382683),
 	   (0.707107,0.707107),
 	   (0.382683,0.923880),
@@ -60,22 +61,22 @@ Vs3 = [(1.00000,0.0),
 	   (-8.03847e-8,-1.000000),
 	   (0.382683,-0.923880),
 	   (0.707107,-0.707107),
-	   (0.923879,-0.382684)]
+	   (0.923879,-0.382684)])
 
 F3circle = list(range(0,16))
 
-Vs4 = [(0.0,0.1),
+Vs4 = geom.Points([(0.0,0.1),
        (-0.1, -0.2),
        (0.1, -0.25),
        (0.3, 0.05),
        (1.0, 0.0),
        (1.1, 1.0),
-       (-0.1, 1.2)]
+       (-0.1, 1.2)])
 
 F4 = list(range(0,7))
 
 # Points for lowercase Arial m
-Vsm =[(0.131836,0.0),	
+Vsm =geom.Points([(0.131836,0.0),	
 	  (0.307617,0.0),
 	  (0.307617,0.538086),
 	  (0.335938,0.754883),
@@ -102,7 +103,7 @@ Vsm =[(0.131836,0.0),
 	  (0.418945,1.01416),		
 	  (0.289063,0.891602),
 	  (0.289063,1.03711),		
-	  (0.131836,1.03711)]
+	  (0.131836,1.03711)])
 
 Fsm = list(range(0,28))
 
@@ -130,9 +131,10 @@ class AnimOffset(tkinter.Frame):
     maxy = -1e6
     minx = 1e6
     miny = 1e6
+    vmap = offset.points.pos
     for f in offset.faces:
       for s in f:
-        p = offset.vmap[s.origin]
+        p = vmap[s.origin]
         minx = min(minx, p[0])
         maxx = max(maxx, p[0])
         miny = min(miny, p[1])
@@ -176,7 +178,7 @@ class AnimOffset(tkinter.Frame):
     tprevoffsets = 0.0
     t = self.time
     while o and t >= tprevoffsets:
-      vmap = o.vmap
+      vmap = o.points.pos
       offt = t - tprevoffsets
       if offt > o.endtime:
         offt = o.endtime
@@ -187,8 +189,8 @@ class AnimOffset(tkinter.Frame):
           p = self.Conv(vmap[s.origin])
           nexts = f[(i+1) % nf]
           nextp = self.Conv(vmap[nexts.origin])
-          q = self.Conv(s.EndPoint(offt, vmap))
-          nextq = self.Conv(nexts.EndPoint(offt, vmap))
+          q = self.Conv(s.EndPoint(offt, o.points))
+          nextq = self.Conv(nexts.EndPoint(offt, o.points))
           line = self.c.create_line(p[0], p[1], nextp[0], nextp[1])
           spoke = self.c.create_line(p[0], p[1], q[0], q[1])
           iline = self.c.create_line(q[0], q[1], nextq[0], nextq[1])
@@ -199,7 +201,7 @@ class AnimOffset(tkinter.Frame):
         line = self.c.create_line(p[0], p[1], q[0], q[1])
         self.lines.append(line)
       tprevoffsets += o.endtime
-      o = o.__next__
+      o = o.next
 
   def Slide(self, newtime):
     self.time = float(newtime)
@@ -231,7 +233,7 @@ class TestSpokeVertexEvent(unittest.TestCase):
 class TestSpokeNoVertexEvent(unittest.TestCase):
 
   def runTest(self):
-    vs = [(0.0,-2.0), (0.5, 0.0), (1.0,0.0), (2.0,1.0), (3.0,0.0)]
+    vs = geom.Points([(0.0,-2.0), (0.5, 0.0), (1.0,0.0), (2.0,1.0), (3.0,0.0)])
     o = offset.Offset([[0,1,2,3,4]], [], vs)
     sp = o.faces[0][1]
     ev = sp.VertexEvent(o.faces[0][2], vs)
@@ -241,6 +243,7 @@ class TestSpokeEdgeEvent(unittest.TestCase):
 
   def runTest(self):
     o = offset.Offset([F1concave], [], Vs1)
+    print("test, o.points=", o.points)
     sp = o.faces[0][1]
     other = o.faces[0][3]
     ev = sp.EdgeEvent(other, o)
@@ -256,9 +259,11 @@ class TestNextSpokeEvents(unittest.TestCase):
 
   def runTest(self):
     o = offset.Offset([F1tri], [], Vs1)
+    print(str(o))
     sp = o.faces[0][0]
     (t, ve, ee) = o.NextSpokeEvents(sp)
-    self.assertEqual(len(ve), 2)
+    print("next spoke events:", t, ve, ee)
+    self.assertEqual(len(ve), 1)
     o = offset.Offset([F1concave], [], Vs1)
     sp = o.faces[0][1]
     (t, ve,ee) = o.NextSpokeEvents(sp)
@@ -272,15 +277,15 @@ class TestBuild(unittest.TestCase):
     o = offset.Offset([F1tri], [], Vs1)
     o.Build()
     ShowOffset(o)
-    # o = offset.Offset([[0, 12, 15, 1]], [], Vs2)
-    # o.Build()
-    # ShowOffset(o)
+    o = offset.Offset([[0, 12, 15, 1]], [], Vs2)
+    o.Build()
+    ShowOffset(o)
     # o = offset.Offset([F4], [], Vs4)
     # o.Build()
     # ShowOffset(o)
     # o = offset.Offset([F1concave], [], Vs1)
     # o.Build()
-    ShowOffset(o)
+    # ShowOffset(o)
 
 if __name__ == "__main__":
   unittest.main()

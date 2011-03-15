@@ -84,8 +84,8 @@ class Spoke(object):
     else:
       # bisector direction is 90 degree CCW rotation of average incoming/outgoing
       self.dir = (-uavg[1], uavg[0])
-      self.is_reflex = Ccw(next, v, prev, vmap)
-      ang = Angle(prev, v, next, vmap)  # in range [0, 180)
+      self.is_reflex = Ccw(next, v, prev, points)
+      ang = Angle(prev, v, next, points)  # in range [0, 180)
       sin_half_ang = math.sin(math.pi*ang / 360.0)
       if abs(sin_half_ang) < TOL:
         self.speed = 1e7
@@ -296,7 +296,7 @@ class Offset(object):
         (oriented CCW); the faces may mutually interfere
     lines: list of (int, int), each representing a line between
         two vertices that are indices into points
-    points: list of int, each representing a single point
+    endpoints: list of int, each representing a single point
         that is an index into points
     endtime: float - time when this offset hits its first
         event (relative to beginning of this offset)
@@ -311,17 +311,17 @@ class Offset(object):
 
     Args:
       ccwfaces: list of list of int - each sublist is a list of indices
-          into vmap, giving CCW-oriented faces
+          into points, giving CCW-oriented faces
       cwfaces: list of list of int - each sublist is a list of indices
-          into vmap, giving CW-oriented faces (holes in ccwfaces)
-      vmap: list of (float, float) - maps vertex indices to 2d coords
+          into points, giving CW-oriented faces (holes in ccwfaces)
+      points: geom.Points - maps vertex indices to 2d coords
           (may be added to during Offset construction)
     """
 
-    self.poitns = points
+    self.points = points
     self.faces = []
     self.lines = []
-    self.points = []
+    self.endpoints = []
     self.endtime = 1e8
     self.next = None
     vmap = points.pos
@@ -330,13 +330,12 @@ class Offset(object):
       fspokes = []
       nf = len(f)
       if nf == 1:
-        self.points.append(f[0])
+        self.endpoints.append(f[0])
       elif nf == 2:
         self.lines.append((f[0], f[1]))
       else:
         for i in range(0, nf):
-          print("   spoke at vertex", f[i])
-          s = Spoke(f[i], f[(i-1) % nf], f[(i+1) % nf], findex, i, vmap)
+          s = Spoke(f[i], f[(i-1) % nf], f[(i+1) % nf], findex, i, points)
           fspokes.append(s)
         self.faces.append(fspokes)
         findex += 1
@@ -344,11 +343,16 @@ class Offset(object):
       fspokes = []
       nf = len(f)
       for i in range(0, nf):
-        print("   spoke at vertex", f[i])
-        s = Spoke(f[i], f[(i+1) % nf], f[(i-1) % nf], findex, i, vmap)
+        s = Spoke(f[i], f[(i+1) % nf], f[(i-1) % nf], findex, i, points)
         fspokes.append(s)
       self.faces.append(fspokes)
       findex += 1
+
+  def __repr__(self):
+    ans = ["Offset: endtime=%g" % self.endtime]
+    for i, face in enumerate(self.faces):
+      ans.append(("<%d>" % i) + str([ str(spoke) for spoke in face ]))
+    return '\n'.join(ans)
 
   def NextSpokeEvents(self, spoke):
     """Return the OffsetEvents that will next happen for a given spoke.
@@ -374,7 +378,7 @@ class Offset(object):
     beste = []
     # First find vertex event (only the one with next spoke)
     next_spoke = face[(spoke.index+1) % nf]
-    ev = spoke.VertexEvent(next_spoke, self.vmap)
+    ev = spoke.VertexEvent(next_spoke, self.points)
     if ev:
       bestv = [ev]
       bestt = ev.time
@@ -411,42 +415,33 @@ class Offset(object):
 
     bestt = 1e100
     bestevs = [[], []]
-    print("Build", target)
     for f in self.faces:
       for s in f:
         (t, ve, ee) = self.NextSpokeEvents(s)
-        print("next spoke events for spoke %s: (%f, %s, %s)" % \
-              (str(s), t, str(ve), str(ee)))
         if t < bestt - TOL:
-          print("t < bestt - TOL, new bestt=%f" % t)
           bestevs = [[], []]
           bestt = t
         if abs(t-bestt) < TOL:
-          print("t ~= bestt, extending")
           bestevs[0].extend(ve)
           bestevs[1].extend(ee)
-          print("new best vevs:", str(bestevs[0]))
     self.endtime = bestt
     (ve, ee) = bestevs
     newfaces = []
     if target < self.endtime:
       self.endtime = target
-      print("no events, endtime=", self.endtime)
       newfaces.extend(self.MakeNewFaces(self.endtime))
     elif ve and not ee:
       # Only vertex events.
       # Merging of successive vertices in inset face will
       # take care of the vertex events
-      print("vertex-only events, endtime=", self.endtime)
-      newfaces.extend(self.MakeNewFaces(self.endtime))
+      newfaces.append(self.MakeNewFaces(self.endtime))
     else:
       # Edge events too
       for ev in ee:
         if ev.spoke.face == ev.other.face:
-          newfaces.extend(self.MakeNewFaces(self.endtime))
+          newfaces.append(self.MakeNewFaces(self.endtime))
           newfaces = self.SplitFace(newfaces, ev)
         else:
-          print("TODO: handle event-crosses-faces edge event")
           newfaces.extend(self.MakeNewFaces(self.endtime))
     nexttarget = target - self.endtime
     anyfaces = False
@@ -455,7 +450,7 @@ class Offset(object):
         anyfaces = True
         break
     if anyfaces and nexttarget > TOL:
-      nextoff = Offset(newfaces, [], self.vmap)
+      nextoff = Offset(newfaces, [], self.points)
       self.next = nextoff
       self.Build(nexttarget)
 
@@ -469,12 +464,13 @@ class Offset(object):
       f: list of Spoke - one of self.faces
       t: float - time
     Returns:
-      list of int - indices into self.vmap (which has been extended)
+      list of int - indices into self.points (which has been extended)
     """
+
     newfacevs = []
     for i in range(0, len(f)):
       s = f[i]
-      v = s.EndPoint(t, self.vmap)
+      v = s.EndPoint(t, self.points)
       if newfacevs:
         if not ApproxEqPts(v, newfacevs[-1]):
           if not (i == len(f)-1 and ApproxEqPts(v, newfacevs[0])):
@@ -483,9 +479,8 @@ class Offset(object):
         newfacevs.append(v)
     newface = []
     for v in newfacevs:
-      self.vmap.append(v)
-      newface.append(len(self.vmap)-1)
-      print("new vertex %d at (%f,%f)" % (len(self.vmap)-1, v[0], v[1]))
+      newv = self.points.AddPoint(v)
+      newface.append(newv)
     return newface
 
   def MakeNewFaces(self, t):
@@ -523,7 +518,6 @@ class Offset(object):
     nf = len(f)
     si = ev.spoke.index
     pi = ev.other.index
-    print("split face, si=%d, pi=%d)" % (si, pi))
     newf0 = findex
     newf1 = len(newfaces)
     newface0 = []
