@@ -1,11 +1,31 @@
+# ##### BEGIN GPL LICENSE BLOCK #####
+#
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation; either version 2
+#  of the License, or (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software Foundation,
+#  Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+# ##### END GPL LICENSE BLOCK #####
+
 """Creating offset polygons inside faces."""
 
 __author__ = "howard.trickey@gmail.com"
 
 import math
 from . import triquad
+from . import geom
 from .triquad import Sub2, Add2, Angle, Ccw, Normalized2, Perp2, Length2, \
                     LinInterp2, TOL
+from .geom import Points
 
 
 class Spoke(object):
@@ -14,7 +34,8 @@ class Spoke(object):
   A Spoke is contained in an Offset (see below).
 
   Attributes:
-    origin: int - index of origin point in an external vmap
+    origin: int - index of origin point in a Points
+    dest: int - index of dest point (can be -1 if not set yet)
     is_reflex: bool - True if spoke grows from a reflex angle
     dir: (float, float) - direction vector (normalized)
     speed: float - at time t, other end of spoke is
@@ -22,9 +43,11 @@ class Spoke(object):
         from the face edges moves at speed 1.
     face: int - index of face containing this Spoke, in Offset
     index: int - index of this Spoke in its face
+    destface: int - index of face containing Spoke dest
+    destindex: int - index of Spoke dest in its face
   """
 
-  def __init__(self, v, prev, next, face, index, vmap):
+  def __init__(self, v, prev, next, face, index, points):
     """Set attribute of spoke from points making up initial angle.
 
     The spoke grows from an angle inside a face along the bisector
@@ -37,27 +60,37 @@ class Spoke(object):
       v: int - index of point spoke grows from
       prev: int - index of point before v on boundary (in CCW order)
       next: int - index of point after v on boundary (in CCW order)
-      vmap: list of (float, float) - maps vertex indices to 2d coords
+      points: geom.Points - maps vertex indices to 2d coords
     """
 
     self.origin = v
+    self.dest = -1
     self.face = face
     self.index = index
+    self.destface = -1
+    self.destindex = -1
+    vmap = points.pos
     vp = vmap[v]
     prevp = vmap[prev]
     nextp = vmap[next]
     uin = Normalized2(Sub2(vp, prevp))
     uout = Normalized2(Sub2(nextp, vp))
     uavg = Normalized2((0.5*(uin[0]+uout[0]), 0.5*(uin[1]+uout[1])))
-    # bisector direction is 90 degree CCW rotation of average incoming/outgoing
-    self.dir = (-uavg[1], uavg[0])
-    self.is_reflex = Ccw(next, v, prev, vmap)
-    ang = Angle(prev, v, next, vmap)  # in range [0, 180)
-    sin_half_ang = math.sin(math.pi*ang / 360.0)
-    if abs(sin_half_ang) < TOL:
+    if abs(Length2(uavg)) < TOL:
+      # in and out vectors are reverse of each other
+      self.dir = uout
+      self.is_reflex = False
       self.speed = 1e7
     else:
-      self.speed = 1.0 / sin_half_ang
+      # bisector direction is 90 degree CCW rotation of average incoming/outgoing
+      self.dir = (-uavg[1], uavg[0])
+      self.is_reflex = Ccw(next, v, prev, vmap)
+      ang = Angle(prev, v, next, vmap)  # in range [0, 180)
+      sin_half_ang = math.sin(math.pi*ang / 360.0)
+      if abs(sin_half_ang) < TOL:
+        self.speed = 1e7
+      else:
+        self.speed = 1.0 / sin_half_ang
 
   def __repr__(self):
     """Printing representation of a Spoke."""
@@ -66,7 +99,7 @@ class Spoke(object):
             self.speed, str(self.dir), \
             self.face, self.index)
 
-  def EndPoint(self, t, vmap):
+  def EndPoint(self, t, points):
     """Return the coordinates of the non-origin point at time t.
 
     Args:
@@ -76,12 +109,13 @@ class Spoke(object):
       (float, float) - coords of spoke's endpoint at time t
     """
 
-    p = vmap[self.origin]
+    p = points.pos[self.origin]
     d = self.dir
     v = self.speed
     return ((p[0]+v*t*d[0], p[1]+v*t*d[1]))
 
-  def VertexEvent(self, other, vmap):
+
+  def VertexEvent(self, other, points):
     """Intersect self with other spoke, and return the OffsetEvent, if any.
 
     A vertex event is with one advancing spoke intersects an adjacent
@@ -89,7 +123,7 @@ class Spoke(object):
 
     Args:
       other: Spoke - other spoke to intersect with
-      vmap: list of (float, float) - maps vertex indices to coords
+      points: Geom.points
     Returns:
       None or OffsetEvent - if there's an intersection in the growing
         directions of the spokes, will return the OffsetEvent for
@@ -97,6 +131,7 @@ class Spoke(object):
         if lines are collinear or parallel, return None
     """
 
+    vmap = points.pos
     a = vmap[self.origin]
     b = Add2(a, self.dir)
     c = vmap[other.origin]
@@ -160,7 +195,7 @@ class Spoke(object):
       None or OffsetEvent - with data about the intersection, if any
     """
 
-    vmap = offset.vmap
+    vmap = offset.points.pos
     o = vmap[self.origin]
     oo = vmap[other.origin]
     otherface = offset.faces[other.face]
@@ -256,19 +291,22 @@ class Offset(object):
   """Represents an offset polygon, and used to construct one.
 
   Attributes:
-    vmap: list of 2-tuples of floats (2d coords)
+    points: geom.Points
     faces: list of list of Spoke - each sublist is a closed face
         (oriented CCW); the faces may mutually interfere
     lines: list of (int, int), each representing a line between
-        two vertices that are indices into vmap
+        two vertices that are indices into points
     points: list of int, each representing a single point
-        that is an index into vmap
+        that is an index into points
     endtime: float - time when this offset hits its first
         event (relative to beginning of this offset)
+    timesofar: float - sum of times taken by all containing Offsets
+    vspeed: float - vertical speed: how height grows with time
+    z0: float - initial height
     next: Offset - the offset that takes over after this (inside it)
   """
 
-  def __init__(self, ccwfaces, cwfaces, vmap):
+  def __init__(self, ccwfaces, cwfaces, points):
     """Set up initial state of Offset from vertex lists.
 
     Args:
@@ -280,12 +318,13 @@ class Offset(object):
           (may be added to during Offset construction)
     """
 
-    self.vmap = vmap
+    self.poitns = points
     self.faces = []
     self.lines = []
     self.points = []
     self.endtime = 1e8
     self.next = None
+    vmap = points.pos
     findex = 0
     for f in ccwfaces:
       fspokes = []
