@@ -215,7 +215,7 @@ def ShowOffset(offset):
 class TestSpokeVertexEvent(unittest.TestCase):
 
   def runTest(self):
-    o = offset.Offset([F1tri], [], Vs1)
+    o = offset.Offset([F1tri], [], Vs1, 0.0)
     sp = o.faces[0][0]
     # spoke goes from (0,0) bisecting (1,0) and (1,.5) lines
     alpha = math.atan(0.5)
@@ -234,7 +234,7 @@ class TestSpokeNoVertexEvent(unittest.TestCase):
 
   def runTest(self):
     vs = geom.Points([(0.0,-2.0), (0.5, 0.0), (1.0,0.0), (2.0,1.0), (3.0,0.0)])
-    o = offset.Offset([[0,1,2,3,4]], [], vs)
+    o = offset.Offset([[0,1,2,3,4]], [], vs, 0.0)
     sp = o.faces[0][1]
     ev = sp.VertexEvent(o.faces[0][2], vs)
     self.assertEqual(ev, None)
@@ -242,7 +242,7 @@ class TestSpokeNoVertexEvent(unittest.TestCase):
 class TestSpokeEdgeEvent(unittest.TestCase):
 
   def runTest(self):
-    o = offset.Offset([F1concave], [], Vs1)
+    o = offset.Offset([F1concave], [], Vs1, 0.0)
     print("test, o.points=", o.points)
     sp = o.faces[0][1]
     other = o.faces[0][3]
@@ -258,13 +258,13 @@ class TestSpokeEdgeEvent(unittest.TestCase):
 class TestNextSpokeEvents(unittest.TestCase):
 
   def runTest(self):
-    o = offset.Offset([F1tri], [], Vs1)
+    o = offset.Offset([F1tri], [], Vs1, 0.0)
     print(str(o))
     sp = o.faces[0][0]
     (t, ve, ee) = o.NextSpokeEvents(sp)
     print("next spoke events:", t, ve, ee)
     self.assertEqual(len(ve), 1)
-    o = offset.Offset([F1concave], [], Vs1)
+    o = offset.Offset([F1concave], [], Vs1, 0.0)
     sp = o.faces[0][1]
     (t, ve,ee) = o.NextSpokeEvents(sp)
     self.assertEqual(len(ee), 1)
@@ -274,18 +274,18 @@ class TestNextSpokeEvents(unittest.TestCase):
 class TestBuild(unittest.TestCase):
 
   def runTest(self):
-    o = offset.Offset([F1tri], [], Vs1)
+    o = offset.Offset([F1tri], [], Vs1, 0.0)
+    o.Build()
+    # ShowOffset(o)
+    o = offset.Offset([[0, 12, 15, 1]], [], Vs2, 0.0)
+    o.Build()
+    # ShowOffset(o)
+    o = offset.Offset([F4], [], Vs4, 0.0)
     o.Build()
     ShowOffset(o)
-    o = offset.Offset([[0, 12, 15, 1]], [], Vs2)
+    o = offset.Offset([F1concave], [], Vs1, 0.0)
     o.Build()
     ShowOffset(o)
-    # o = offset.Offset([F4], [], Vs4)
-    # o.Build()
-    # ShowOffset(o)
-    # o = offset.Offset([F1concave], [], Vs1)
-    # o.Build()
-    # ShowOffset(o)
 
 if __name__ == "__main__":
   unittest.main()

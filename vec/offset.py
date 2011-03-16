@@ -27,6 +27,7 @@ from .triquad import Sub2, Add2, Angle, Ccw, Normalized2, Perp2, Length2, \
                     LinInterp2, TOL
 from .geom import Points
 
+AREATOL = 1e-4
 
 class Spoke(object):
   """A Spoke is a line growing from an outer vertex to an inner one.
@@ -301,12 +302,10 @@ class Offset(object):
     endtime: float - time when this offset hits its first
         event (relative to beginning of this offset)
     timesofar: float - sum of times taken by all containing Offsets
-    vspeed: float - vertical speed: how height grows with time
-    z0: float - initial height
     next: Offset - the offset that takes over after this (inside it)
   """
 
-  def __init__(self, ccwfaces, cwfaces, points):
+  def __init__(self, ccwfaces, cwfaces, points, time):
     """Set up initial state of Offset from vertex lists.
 
     Args:
@@ -316,43 +315,57 @@ class Offset(object):
           into points, giving CW-oriented faces (holes in ccwfaces)
       points: geom.Points - maps vertex indices to 2d coords
           (may be added to during Offset construction)
+      time: float - time so far
     """
 
     self.points = points
     self.faces = []
     self.lines = []
     self.endpoints = []
-    self.endtime = 1e8
+    self.endtime = 0.0
+    self.timesofar = time
     self.next = None
-    vmap = points.pos
     findex = 0
     for f in ccwfaces:
-      fspokes = []
-      nf = len(f)
-      if nf == 1:
-        self.endpoints.append(f[0])
-      elif nf == 2:
-        self.lines.append((f[0], f[1]))
-      else:
-        for i in range(0, nf):
-          s = Spoke(f[i], f[(i-1) % nf], f[(i+1) % nf], findex, i, points)
-          fspokes.append(s)
-        self.faces.append(fspokes)
-        findex += 1
+      self.InitFace(f, True)
     for f in cwfaces:
-      fspokes = []
-      nf = len(f)
-      for i in range(0, nf):
-        s = Spoke(f[i], f[(i+1) % nf], f[(i-1) % nf], findex, i, points)
-        fspokes.append(s)
-      self.faces.append(fspokes)
-      findex += 1
+      self.InitFace(f, False)
 
   def __repr__(self):
     ans = ["Offset: endtime=%g" % self.endtime]
     for i, face in enumerate(self.faces):
       ans.append(("<%d>" % i) + str([ str(spoke) for spoke in face ]))
     return '\n'.join(ans)
+
+  def InitFace(self, face_vertices, isccw):
+    """Initialize the offset representation of a face from vertex list.
+
+    If the face has no area or too small an area, don't bother making it.
+
+    Args:
+      face_vertices: list of int - point indices for boundary of face
+      isccw: bool - True if face goes counterclockwise
+    Side effect:
+      A new face (list of spokes) may be added to self.faces
+    """
+
+    n = len(face_vertices)
+    if n <= 2:
+      return
+    area = abs(geom.SignedArea(face_vertices, self.points))
+    if area < AREATOL:
+      return
+    if isccw:
+      previnc = -1
+      nextinc = 1
+    else:
+      previnc = 1
+      nextinc = -1
+    findex = len(self.faces)
+    fspokes = [ Spoke(v, face_vertices[(i+previnc) % n], \
+        face_vertices[(i+nextinc) % n], findex, i, self.points) \
+        for i, v in enumerate(face_vertices) ]
+    self.faces.append(fspokes)
 
   def NextSpokeEvents(self, spoke):
     """Return the OffsetEvents that will next happen for a given spoke.
@@ -397,12 +410,8 @@ class Offset(object):
               bestv = []
               bestt = ev.time
             if abs(ev.time - bestt) < TOL:
-              if not beste:
-                beste = [ev]
-              else:
-                pev = beste[-1]
-                if ev.spoke != pev.spoke or ev.other.index == (pev.other.index+1)% nf:
-                  beste.append(ev)
+              beste.append(ev)
+              break   # one edge event per spoke is enough
     return (bestt, bestv, beste)
 
   def Build(self, target = 2e100):
@@ -424,35 +433,31 @@ class Offset(object):
         if abs(t-bestt) < TOL:
           bestevs[0].extend(ve)
           bestevs[1].extend(ee)
+    if abs(bestt) < TOL:
+      # seems to be in a loop, so quit
+      return
     self.endtime = bestt
     (ve, ee) = bestevs
     newfaces = []
     if target < self.endtime:
       self.endtime = target
-      newfaces.extend(self.MakeNewFaces(self.endtime))
+      newfaces = self.MakeNewFaces(self.endtime)
     elif ve and not ee:
       # Only vertex events.
       # Merging of successive vertices in inset face will
       # take care of the vertex events
-      newfaces.append(self.MakeNewFaces(self.endtime))
+      newfaces = self.MakeNewFaces(self.endtime)
     else:
       # Edge events too
+      newfaces = self.MakeNewFaces(self.endtime)
       for ev in ee:
-        if ev.spoke.face == ev.other.face:
-          newfaces.append(self.MakeNewFaces(self.endtime))
-          newfaces = self.SplitFace(newfaces, ev)
-        else:
-          newfaces.extend(self.MakeNewFaces(self.endtime))
+        self.SplitJoinFaces(newfaces, ev)
+    self.CleanFaces(newfaces)
     nexttarget = target - self.endtime
-    anyfaces = False
-    for f in newfaces:
-      if len(f) >= 3:
-        anyfaces = True
-        break
-    if anyfaces and nexttarget > TOL:
-      nextoff = Offset(newfaces, [], self.points)
-      self.next = nextoff
-      self.Build(nexttarget)
+    if len(newfaces) > 0:
+      self.next = Offset(newfaces, [], self.points, self.timesofar+self.endtime)
+      if nexttarget > TOL:
+        self.next.Build(nexttarget)
 
   def FaceAtSpokeEnds(self, f, t):
     """Return a new face that is at the spoke ends of face f at time t.
@@ -464,7 +469,7 @@ class Offset(object):
       f: list of Spoke - one of self.faces
       t: float - time
     Returns:
-      list of int - indices into self.points (which has been extended)
+      list of int - indices into self.points (which has been extended with new ones)
     """
 
     newfacevs = []
@@ -495,24 +500,46 @@ class Offset(object):
     ans = []
     for f in self.faces:
       newf = self.FaceAtSpokeEnds(f, t)
-      ans += newf
+      if len(newf) > 2:
+        ans.append(newf)
     return ans
 
-  def SplitFace(self, newfaces, ev):
-    """Use event ev to split its face into two faces.
+  def SplitJoinFaces(self, newfaces, ev):
+    """Use event ev to split or join faces.
     
-    Assuming ev doesn't cross faces, split the face that is currently
-    the dest of ev.spoke into two faces, keeping one at its current
-    place in newfaces, and adding the other to the end.
+    Given ev, an edge event, use the ev spoke to split the
+    other spoke's inner edge.
+    If the ev's face and destface are the same, this splits the
+    face into two; if the faces are different, it joins them into one.
+    We have just made faces at the end of the spokes.
+    We have to remove the edge going from the other spoke to its
+    next spoke, and replace it with two edges, going to and from
+    the event spoke's destination.
+    General situation:
+         __  s  ____
+     \     b\ | /a       /
+     c\      \|/        /e
+      -----------------
+    o/        d        \
+    /                   \
+  
+    where s is the event spoke and o is the "other spoke",
+    d is o's inner edge, and b is s's inner edge.
+    What we are to do is to split d into d1 and d2, with the
+    joining point attached where b,s,a join.
+    There are a bunch of special cases:
+     - one of d1 or d2 might have zero length because end points
+       are already coincident or nearly coincident.
+     - maybe c==b or e==a
 
     Args:
       newfaces: list of list of int - the new faces
       ev: OffsetEvent - an edge event
-    Returns:
-      list of list of int - modified newfaces
+    Side Effects:
+      faces in newfaces may be modified or removed, or a new face may
+      be added
     """
 
-    ans = []
     findex = ev.spoke.face
     f = newfaces[findex]
     nf = len(f)
@@ -522,12 +549,17 @@ class Offset(object):
     newf1 = len(newfaces)
     newface0 = []
     newface1 = []
-    # The tow new faces put spoke si's dest on edge between
+    # The two new faces put spoke si's dest on edge between
     # pi's dest and qi (edge after pi)'s dest in original face.
     # These are indices in the original face; the current dest face
     # may have fewer elements because of merging successive points
-    return ans
+    # TODO: finish this
 
+  def CleanFaces(self, newfaces):
+    """Fix up the newfaces"""
+
+    # TODO
+    pass
 
 def ApproxEqPts(a, b):
   """Returns true if 2d ponts a and b are the same, within tolerance.
