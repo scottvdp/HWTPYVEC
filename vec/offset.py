@@ -36,7 +36,7 @@ class Spoke(object):
 
   Attributes:
     origin: int - index of origin point in a Points
-    dest: int - index of dest point (can be -1 if not set yet)
+    dest: int - index of dest point
     is_reflex: bool - True if spoke grows from a reflex angle
     dir: (float, float) - direction vector (normalized)
     speed: float - at time t, other end of spoke is
@@ -65,7 +65,7 @@ class Spoke(object):
     """
 
     self.origin = v
-    self.dest = -1
+    self.dest = v
     self.face = face
     self.index = index
     self.destface = -1
@@ -196,10 +196,10 @@ class Spoke(object):
       None or OffsetEvent - with data about the intersection, if any
     """
 
-    vmap = offset.points.pos
+    vmap = offset.polyarea.points.pos
     o = vmap[self.origin]
     oo = vmap[other.origin]
-    otherface = offset.faces[other.face]
+    otherface = offset.facespokes[other.face]
     othernext = otherface[(other.index+1) % len(otherface)]
     oonext = vmap[othernext.origin]
     p = Normalized2(Sub2(oonext, oo))
@@ -289,55 +289,47 @@ class OffsetEvent(object):
 
 
 class Offset(object):
-  """Represents an offset polygon, and used to construct one.
+  """Represents an offset polygonal area, and used to construct one.
 
   Attributes:
-    points: geom.Points
-    faces: list of list of Spoke - each sublist is a closed face
-        (oriented CCW); the faces may mutually interfere
-    lines: list of (int, int), each representing a line between
-        two vertices that are indices into points
-    endpoints: list of int, each representing a single point
-        that is an index into points
+    polyarea: geom.PolyArea - the area we are offsetting from.
+        We share the polyarea.points, and add to it as points in
+        the offset polygonal area are computed.
+    facespokes: list of list of Spoke - each sublist is a closed face
+        (oriented CCW); the faces may mutually interfere.
+        These lists are spokes for polyarea.poly + polyarea.holes,
+        except that the lists of the holes are reversed to make them
+        all CCW.
     endtime: float - time when this offset hits its first
         event (relative to beginning of this offset)
     timesofar: float - sum of times taken by all containing Offsets
-    next: Offset - the offset that takes over after this (inside it)
+    inneroffsets: list of Offset - the offsets that take over after this (inside it)
   """
 
-  def __init__(self, ccwfaces, cwfaces, points, time):
-    """Set up initial state of Offset from vertex lists.
+  def __init__(self, polyarea, time):
+    """Set up initial state of Offset from a polyarea.
 
     Args:
-      ccwfaces: list of list of int - each sublist is a list of indices
-          into points, giving CCW-oriented faces
-      cwfaces: list of list of int - each sublist is a list of indices
-          into points, giving CW-oriented faces (holes in ccwfaces)
-      points: geom.Points - maps vertex indices to 2d coords
-          (may be added to during Offset construction)
+      polyarea: geom.PolyArea
       time: float - time so far
     """
 
-    self.points = points
-    self.faces = []
-    self.lines = []
-    self.endpoints = []
+    self.polyarea = polyarea
+    self.facespokes = []
     self.endtime = 0.0
     self.timesofar = time
-    self.next = None
-    findex = 0
-    for f in ccwfaces:
-      self.InitFace(f, True)
-    for f in cwfaces:
-      self.InitFace(f, False)
+    self.inneroffsets = []
+    self.InitFaceSpokes(polyarea.poly, True)
+    for f in polyarea.holes:
+      self.InitFaceSpokes(f, False)
 
   def __repr__(self):
     ans = ["Offset: endtime=%g" % self.endtime]
-    for i, face in enumerate(self.faces):
+    for i, face in enumerate(self.facespokes):
       ans.append(("<%d>" % i) + str([ str(spoke) for spoke in face ]))
     return '\n'.join(ans)
 
-  def InitFace(self, face_vertices, isccw):
+  def InitFaceSpokes(self, face_vertices, isccw):
     """Initialize the offset representation of a face from vertex list.
 
     If the face has no area or too small an area, don't bother making it.
@@ -346,13 +338,14 @@ class Offset(object):
       face_vertices: list of int - point indices for boundary of face
       isccw: bool - True if face goes counterclockwise
     Side effect:
-      A new face (list of spokes) may be added to self.faces
+      A new face (list of spokes) may be added to self.facespokes
     """
 
     n = len(face_vertices)
     if n <= 2:
       return
-    area = abs(geom.SignedArea(face_vertices, self.points))
+    points = self.polyarea.points
+    area = abs(geom.SignedArea(face_vertices, points))
     if area < AREATOL:
       return
     if isccw:
@@ -361,11 +354,11 @@ class Offset(object):
     else:
       previnc = 1
       nextinc = -1
-    findex = len(self.faces)
+    findex = len(self.facespokes)
     fspokes = [ Spoke(v, face_vertices[(i+previnc) % n], \
-        face_vertices[(i+nextinc) % n], findex, i, self.points) \
+        face_vertices[(i+nextinc) % n], findex, i, points) \
         for i, v in enumerate(face_vertices) ]
-    self.faces.append(fspokes)
+    self.facespokes.append(fspokes)
 
   def NextSpokeEvents(self, spoke):
     """Return the OffsetEvents that will next happen for a given spoke.
@@ -384,22 +377,21 @@ class Offset(object):
           next Vertex event list and next Edge event list
     """
 
-    face = self.faces[spoke.face]
-    nf = len(face)
+    facespokes = self.facespokes[spoke.face]
+    n = len(facespokes)
     bestt = 1e100
     bestv = []
     beste = []
     # First find vertex event (only the one with next spoke)
-    next_spoke = face[(spoke.index+1) % nf]
-    ev = spoke.VertexEvent(next_spoke, self.points)
+    next_spoke = facespokes[(spoke.index+1) % n]
+    ev = spoke.VertexEvent(next_spoke, self.polyarea.points)
     if ev:
       bestv = [ev]
       bestt = ev.time
     # Now find edge events, if this is a reflex vertex
     if spoke.is_reflex:
-      prev_spoke = face[(spoke.index-1) % nf]
-      for f in self.faces:
-        nf = len(f)
+      prev_spoke = facespokes[(spoke.index-1) % n]
+      for f in self.facespokes:
         for other in f:
           if other == spoke or other == prev_spoke:
             continue
@@ -417,14 +409,14 @@ class Offset(object):
   def Build(self, target = 2e100):
     """Build the complete Offset structure or up until target time.
 
-    Find the next event(s), makes the appropriate next Offset chained
-    from this one, and calls Build on that Offset to continue the
+    Find the next event(s), makes the appropriate inner Offsets
+    that are inside this one, and calls Build on those Offsets to continue the
     process until only a single point is left or time reaches target.
     """
 
     bestt = 1e100
     bestevs = [[], []]
-    for f in self.faces:
+    for f in self.facespokes:
       for s in f:
         (t, ve, ee) = self.NextSpokeEvents(s)
         if t < bestt - TOL:
@@ -455,9 +447,15 @@ class Offset(object):
     self.CleanFaces(newfaces)
     nexttarget = target - self.endtime
     if len(newfaces) > 0:
-      self.next = Offset(newfaces, [], self.points, self.timesofar+self.endtime)
+      pa = geom.PolyArea(points = self.polyarea.points)
+      if len(newfaces) > 1:
+        print("Need to implement this")
+      pa.poly = newfaces[0]
+      pa.color = self.polyarea.color
+      self.inneroffsets = [ Offset(pa, self.timesofar+self.endtime) ]
       if nexttarget > TOL:
-        self.next.Build(nexttarget)
+        for o in self.inneroffsets:
+          o.Build(nexttarget)
 
   def FaceAtSpokeEnds(self, f, t):
     """Return a new face that is at the spoke ends of face f at time t.
@@ -469,23 +467,21 @@ class Offset(object):
       f: list of Spoke - one of self.faces
       t: float - time
     Returns:
-      list of int - indices into self.points (which has been extended with new ones)
+      list of int - indices into self.polyarea.points (which has been extended with new ones)
     """
 
-    newfacevs = []
+    newface = []
+    points = self.polyarea.points
     for i in range(0, len(f)):
       s = f[i]
-      v = s.EndPoint(t, self.points)
-      if newfacevs:
-        if not ApproxEqPts(v, newfacevs[-1]):
-          if not (i == len(f)-1 and ApproxEqPts(v, newfacevs[0])):
-            newfacevs.append(v)
+      vcoords = s.EndPoint(t, points)
+      v = points.AddPoint(vcoords)
+      if newface:
+        if v != newface[-1] and not (i == len(f)-1 and v == newface[0]):
+            newface.append(v)
       else:
-        newfacevs.append(v)
-    newface = []
-    for v in newfacevs:
-      newv = self.points.AddPoint(v)
-      newface.append(newv)
+        newface.append(v)
+      s.dest = v
     return newface
 
   def MakeNewFaces(self, t):
@@ -498,7 +494,7 @@ class Offset(object):
     """
 
     ans = []
-    for f in self.faces:
+    for f in self.facespokes:
       newf = self.FaceAtSpokeEnds(f, t)
       if len(newf) > 2:
         ans.append(newf)
@@ -560,20 +556,3 @@ class Offset(object):
 
     # TODO
     pass
-
-def ApproxEqPts(a, b):
-  """Returns true if 2d ponts a and b are the same, within tolerance.
-
-  Args:
-    a: (float, float) - first point
-    b: (float, float) - second point
-  Returns:
-    bool - True if both coords are closer than TOL
-  """
-
-  (xa, ya) = a
-  (xb, yb) = b
-  return abs(xa-xb) < TOL and abs(ya-yb) < TOL
-
-
-

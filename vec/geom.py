@@ -129,6 +129,20 @@ class Points(object):
       ans.AddPoint((x, y, z))
     return ans
 
+  def ChangeZCoord(self, i, z):
+    """Change the z-coordinate of point with index i.
+
+    Assumes the coordinates are currently 3d.
+
+    Args:
+      i: int - index of a point
+      z: float - value to change z-coord to
+    """
+
+    (x, y, _) = self.pos[i]
+    self.pos[i] = (x, y, z)
+
+
 class PolyArea(object):
   """Contains a Polygonal Area (polygon with possible holes).
 

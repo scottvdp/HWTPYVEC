@@ -212,3 +212,59 @@ def _maptuple(t, vmap):
   """Return a tuple t' where each index i in t is replaced by vmap[i]."""
 
   return tuple([ vmap[i] for i in t ] )
+
+
+def OffsetToModel(off, vspeed, quadrangulate):
+  """Convert an Offset object into a Model object.
+
+  Args:
+    off: offset.Offset
+    vspeed: float - vertical speed - how fast height grows with time
+    quadrangulate: bool - if True quandrangulate any ngons
+  Returns:
+    Model
+  """
+
+  m = Model()
+  m.points = off.polyarea.points
+  if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
+    m.points = m.points.AddZCoord(0.0)
+  o = off
+  ostack = [ ]
+  while o:
+    if o.endtime == 0.0:
+      _MakeInnerFacesOffsetModel(m, o, quadrangulate)
+    else:
+      zouter = o.timesofar * vspeed
+      zinner = zouter + o.endtime * vspeed
+      for face in o.facespokes:
+        n = len(face)
+        for i, spoke in enumerate(face):
+          nextspoke = face[(i+1) % n]
+          v0 = spoke.origin
+          v1 = nextspoke.origin
+          v2 = nextspoke.dest
+          v3 = spoke.dest
+          for v in [v0, v1]:
+            m.points.ChangeZCoord(v, zouter)
+          for v in [v2, v3]:
+            m.points.ChangeZCoord(v, zinner)
+          if v2 == v3:
+            mface = [v0, v1, v2]
+          else:
+            mface = [v0, v1, v2, v3]
+          m.faces.append(mface)
+    ostack.extend(o.inneroffsets)
+    if ostack:
+      o = ostack.pop()
+    else:
+      o = None
+  return m
+
+
+def _MakeInnerFacesOffsetModel(model, off, quadrangulate):
+  """Make the inner faces, given by off, of model.
+  """
+
+  # TODO
+  pass

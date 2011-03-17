@@ -131,8 +131,8 @@ class AnimOffset(tkinter.Frame):
     maxy = -1e6
     minx = 1e6
     miny = 1e6
-    vmap = offset.points.pos
-    for f in offset.faces:
+    vmap = offset.polyarea.points.pos
+    for f in offset.facespokes:
       for s in f:
         p = vmap[s.origin]
         minx = min(minx, p[0])
@@ -177,31 +177,32 @@ class AnimOffset(tkinter.Frame):
     o = self.offset
     tprevoffsets = 0.0
     t = self.time
+    points = o.polyarea.points
+    vmap = points.pos
+    ostack = [  ]
     while o and t >= tprevoffsets:
-      vmap = o.points.pos
       offt = t - tprevoffsets
       if offt > o.endtime:
         offt = o.endtime
-      for f in o.faces:
+      for f in o.facespokes:
         nf = len(f)
         for i in range(0, nf):
           s = f[i]
           p = self.Conv(vmap[s.origin])
           nexts = f[(i+1) % nf]
           nextp = self.Conv(vmap[nexts.origin])
-          q = self.Conv(s.EndPoint(offt, o.points))
-          nextq = self.Conv(nexts.EndPoint(offt, o.points))
+          q = self.Conv(s.EndPoint(offt, points))
+          nextq = self.Conv(nexts.EndPoint(offt, points))
           line = self.c.create_line(p[0], p[1], nextp[0], nextp[1])
           spoke = self.c.create_line(p[0], p[1], q[0], q[1])
           iline = self.c.create_line(q[0], q[1], nextq[0], nextq[1])
           self.lines += [line, spoke, iline]
-      for (a,b) in o.lines:
-        p = self.Conv(vmap[a])
-        q = self.Conv(vmap[b])
-        line = self.c.create_line(p[0], p[1], q[0], q[1])
-        self.lines.append(line)
       tprevoffsets += o.endtime
-      o = o.next
+      ostack.extend(o.inneroffsets)
+      if ostack:
+        o = ostack.pop()
+      else:
+        o = None
 
   def Slide(self, newtime):
     self.time = float(newtime)
@@ -215,15 +216,16 @@ def ShowOffset(offset):
 class TestSpokeVertexEvent(unittest.TestCase):
 
   def runTest(self):
-    o = offset.Offset([F1tri], [], Vs1, 0.0)
-    sp = o.faces[0][0]
+    pa = geom.PolyArea(Vs1, F1tri)
+    o = offset.Offset(pa, 0.0)
+    sp = o.facespokes[0][0]
     # spoke goes from (0,0) bisecting (1,0) and (1,.5) lines
     alpha = math.atan(0.5)
     halpha = alpha / 2.0  # angle of spoke
     self.assertAlmostEqual(sp.speed, 1.0/math.sin(halpha))
     self.assertAlmostEqual(sp.dir[0], math.cos(halpha))
     self.assertAlmostEqual(sp.dir[1], math.sin(halpha))
-    ev = sp.VertexEvent(o.faces[0][1], Vs1)
+    ev = sp.VertexEvent(o.facespokes[0][1], pa.points)
     # time is height of triangle with base .5 and angle halpha
     # that is also the y value of the intersection point
     self.assertAlmostEqual(ev.time, 0.5*math.tan(halpha))
@@ -233,19 +235,20 @@ class TestSpokeVertexEvent(unittest.TestCase):
 class TestSpokeNoVertexEvent(unittest.TestCase):
 
   def runTest(self):
-    vs = geom.Points([(0.0,-2.0), (0.5, 0.0), (1.0,0.0), (2.0,1.0), (3.0,0.0)])
-    o = offset.Offset([[0,1,2,3,4]], [], vs, 0.0)
-    sp = o.faces[0][1]
-    ev = sp.VertexEvent(o.faces[0][2], vs)
+    pts = geom.Points([(0.0,-2.0), (0.5, 0.0), (1.0,0.0), (2.0,1.0), (3.0,0.0)])
+    pa = geom.PolyArea(pts, [0,1,2,3,4])
+    o = offset.Offset(pa, 0.0)
+    sp = o.facespokes[0][1]
+    ev = sp.VertexEvent(o.facespokes[0][2], pa.points)
     self.assertEqual(ev, None)
 
 class TestSpokeEdgeEvent(unittest.TestCase):
 
   def runTest(self):
-    o = offset.Offset([F1concave], [], Vs1, 0.0)
-    print("test, o.points=", o.points)
-    sp = o.faces[0][1]
-    other = o.faces[0][3]
+    pa = geom.PolyArea(Vs1, F1concave)
+    o = offset.Offset(pa, 0.0)
+    sp = o.facespokes[0][1]
+    other = o.facespokes[0][3]
     ev = sp.EdgeEvent(other, o)
     # trig shows t/(.75-h)=sin(alpha) where tan(alpha)=2
     alpha = math.atan(2)
@@ -258,14 +261,14 @@ class TestSpokeEdgeEvent(unittest.TestCase):
 class TestNextSpokeEvents(unittest.TestCase):
 
   def runTest(self):
-    o = offset.Offset([F1tri], [], Vs1, 0.0)
-    print(str(o))
-    sp = o.faces[0][0]
+    pa = geom.PolyArea(Vs1, F1tri)
+    o = offset.Offset(pa, 0.0)
+    sp = o.facespokes[0][0]
     (t, ve, ee) = o.NextSpokeEvents(sp)
-    print("next spoke events:", t, ve, ee)
     self.assertEqual(len(ve), 1)
-    o = offset.Offset([F1concave], [], Vs1, 0.0)
-    sp = o.faces[0][1]
+    pa = geom.PolyArea(Vs1, F1concave)
+    o = offset.Offset(pa, 0.0)
+    sp = o.facespokes[0][1]
     (t, ve,ee) = o.NextSpokeEvents(sp)
     self.assertEqual(len(ee), 1)
     self.assertFalse(ee[0].is_vertex_event)
@@ -274,16 +277,26 @@ class TestNextSpokeEvents(unittest.TestCase):
 class TestBuild(unittest.TestCase):
 
   def runTest(self):
-    o = offset.Offset([F1tri], [], Vs1, 0.0)
+    pa = geom.PolyArea(Vs1, F1tri)
+    o = offset.Offset(pa, 0.0)
     o.Build()
+    self.assertAlmostEqual(o.endtime, 0.11803398875)
+    self.assertEqual(len(o.inneroffsets), 0)
     # ShowOffset(o)
-    o = offset.Offset([[0, 12, 15, 1]], [], Vs2, 0.0)
+    pa = geom.PolyArea(Vs2, [0, 12, 15, 1])
+    o = offset.Offset(pa, 0.0)
     o.Build()
+    self.assertAlmostEqual(o.endtime, 0.5)
+    self.assertEqual(len(o.inneroffsets), 0)
     # ShowOffset(o)
-    o = offset.Offset([F4], [], Vs4, 0.0)
+    pa = geom.PolyArea(Vs4, F4)
+    o = offset.Offset(pa, 0.0)
     o.Build()
+    self.assertAlmostEqual(o.endtime, 0.1155192686)
+    self.assertEqual(len(o.inneroffsets), 1)
     ShowOffset(o)
-    o = offset.Offset([F1concave], [], Vs1, 0.0)
+    pa = geom.PolyArea(Vs1, F1concave)
+    o = offset.Offset(pa, 0.0)
     o.Build()
     ShowOffset(o)
 
