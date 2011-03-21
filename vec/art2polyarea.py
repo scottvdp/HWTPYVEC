@@ -76,9 +76,10 @@ def ArtToPolyAreas(art, options):
     art: vecfile.Art - contains Paths to convert
     options: ConvertOptions
   Returns:
-    list of geom.PolyArea
+    geom.PolyAreas
   """
 
+  ans = geom.PolyAreas()
   paths_to_convert = art.paths
   if options.filled_only:
     paths_to_convert = [ p for p in paths_to_convert if p.filled ]
@@ -92,13 +93,15 @@ def ArtToPolyAreas(art, options):
   if options.combine_paths:
     combinedpath = vecfile.Path()
     combinedpath.subpaths = _flatten([ p.subpaths for p in paths_to_convert ])
-    return PathToPolyAreas(combinedpath, options)
+    areas = PathToPolyAreas(combinedpath, options, ans.points)
   else:
-    return _flatten([ PathToPolyAreas(p, options) for p in paths_to_convert ])
+    areas = _flatten([ PathToPolyAreas(p, options, ans.points) for p in paths_to_convert ])
+  ans.polyareas.extend(areas)
+  return ans
 
 
-def PathToPolyAreas(path, options):
-  """Convert Path object to PolyAreas.
+def PathToPolyAreas(path, options, points):
+  """Convert Path object to list of PolyArea, sharing points.
 
   Like ArtToPolyAreas, but for a single Path in Art.
 
@@ -111,11 +114,12 @@ def PathToPolyAreas(path, options):
   Args:
     path: vecfile.Path - the path to convert
     options: ConvertOptions
+    points: geom.Points - use this shared points for all areas
   Returns:
     list of geom.PolyArea
   """
 
-  subpolyareas = [ _SubpathToPolyArea(sp, options, path.fillpaint.color) \
+  subpolyareas = [ _SubpathToPolyArea(sp, options, points, path.fillpaint.color) \
       for sp in path.subpaths ]
   return CombineSimplePolyAreas(subpolyareas)
 
@@ -172,7 +176,7 @@ def CombineSimplePolyAreas(subpolyareas):
   return polyareas
 
 
-def _SubpathToPolyArea(subpath, options, color = (0.0, 0.0, 0.0)):
+def _SubpathToPolyArea(subpath, options, points, color = (0.0, 0.0, 0.0)):
   """Return a PolyArea representing a single subpath.
 
   Converts curved segments into approximating line
@@ -184,6 +188,7 @@ def _SubpathToPolyArea(subpath, options, color = (0.0, 0.0, 0.0)):
   Args:
     subpath: vecfile.Subpath - the subpath to convert
     options: ConvertOptions
+    points: geom.Points - used this shared Points for area
     color: (float, float, float) - rgb of filling color
   Returns:
     geom.PolyArea
@@ -192,6 +197,7 @@ def _SubpathToPolyArea(subpath, options, color = (0.0, 0.0, 0.0)):
   face = []
   prev = None
   ans = geom.PolyArea()
+  ans.points = points
   ans.color = color
   for seg in subpath.segments:
     (ty, start, end) = seg[0:3]
@@ -215,7 +221,6 @@ def _SubpathToPolyArea(subpath, options, color = (0.0, 0.0, 0.0)):
       print("unexpected segment type", ty)
   # now make a cleaned face in a new PolyArea
   # with no two successive points approximately equal
-  # and a new vmap
   if len(face) <= 2:
     # degenerate face, return an empty PolyArea
     return ans

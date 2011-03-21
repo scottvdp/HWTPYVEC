@@ -91,7 +91,7 @@ class TestSubpathToPolyArea(unittest.TestCase):
     subpath.AddSegment(('B', (3.0, 5.0), (0.0, 5.0), (2.0, 6.0), (1.0, 6.0)))
     subpath.closed = True
     opt = art2polyarea.ConvertOptions()
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(pa.points.pos, [(0.0, 0.0), (3.0, 0.0), (3.0, 5.0),
         (1.5, 5.75), (0.0, 5.0)])
     self.assertEqual(pa.poly, [0, 1, 2, 3, 4])
@@ -99,11 +99,11 @@ class TestSubpathToPolyArea(unittest.TestCase):
     subpath.AddSegment(('L', (0.0, 0.0), (1.0, 0.0)))
     opt = art2polyarea.ConvertOptions()
     opt.smoothness = 0
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(pa.poly, [])
     subpath = _MakePolySubpath([(0.0, 0.0), (0.000001, 0.0),
         (1.0, 0.0), (2.0, 2.0), (2.0, 2.0004), (3.0, 5.0), (0.0, -0.00003)])
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(pa.points.pos, [(0.0, 0.0), (1.0, 0.0), (2.0, 2.0), (3.0, 5.0)])
     self.assertEqual(pa.poly, [0, 1, 2, 3])
 
@@ -120,25 +120,25 @@ class TestAdaptiveSubpathToPolyArea(unittest.TestCase):
     opt = art2polyarea.ConvertOptions()
     opt.subdiv_kind = "ADAPTIVE"
     opt.smoothness = 0
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 4)
     opt.smoothness = 1
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 8)
     opt.smoothness = 2
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 16)
     opt.smoothness = 3
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 32)
     opt.smoothness = 4
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 64)
     opt.smoothness = 5
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 128)
     opt.smoothness = 6
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 128)
 
 
@@ -157,15 +157,15 @@ class TestEvenApprox(unittest.TestCase):
     opt.subdiv_kind = "EVEN"
     opt.smoothness = 0
     art2polyarea._SetEvenLength(opt, [ path ] )
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 10)
     opt.smoothness = 1
     art2polyarea._SetEvenLength(opt, [ path ] )
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 18)
     opt.smoothness = 2
     art2polyarea._SetEvenLength(opt, [ path ] )
-    pa = art2polyarea._SubpathToPolyArea(subpath, opt)
+    pa = art2polyarea._SubpathToPolyArea(subpath, opt, geom.Points())
     self.assertEqual(len(pa.poly), 26)
 
 
@@ -187,26 +187,26 @@ class TestArtToPolyAreas(unittest.TestCase):
     path3.AddSubpath(_MakePolySubpath([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]))
     path3.AddSubpath(_MakePolySubpath([(.2, .2), (.1, .6), (.4, .2)]))
     path3.filled = True
-    path3.fillpaint = (1.0, 0.0, 0.0)  # red
+    path3.fillpaint = vecfile.Paint(1.0, 0.0, 0.0)  # red
     # path 4 - rectangle - covers path3, but shouldn't combine with it
     path4 = vecfile.Path()
     path4.AddSubpath(_MakePolySubpath([(-1.0, -1.0), (5.0, -1.0), (5.0, 2.0), (-1.0, 2.0)]))
     path4.filled = True
-    path4.fillpaint = (0.0, 1.0, 0.0)  # green
+    path4.fillpaint = vecfile.Paint(0.0, 1.0, 0.0)  # green
     art.paths = [path1, path2, path3, path4]
     opt = art2polyarea.ConvertOptions()
     opt.smoothness = 0
     pas = art2polyarea.ArtToPolyAreas(art, opt)
-    self.assertEqual(len(pas), 2)
-    self.assertEqual(pas[0].points.pos,
-        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.2, 0.2), (0.1, 0.6), (0.4, 0.2)])
-    self.assertEqual(pas[0].poly, [0, 1, 2, 3])
-    self.assertEqual(pas[0].holes, [[4, 5, 6]])
-    self.assertEqual(pas[0].color, (1.0, 0.0, 0.0))
-    self.assertEqual(pas[1].points.pos, [(-1.0, -1.0), (5.0, -1.0), (5.0, 2.0), (-1.0, 2.0)])
-    self.assertEqual(pas[1].poly, [0, 1, 2, 3])
-    self.assertEqual(pas[1].holes, [])
-    self.assertEqual(pas[1].color, (0.0, 1.0, 0.0))
+    self.assertEqual(len(pas.polyareas), 2)
+    self.assertEqual(pas.points.pos,
+        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.2, 0.2), (0.1, 0.6), (0.4, 0.2),
+	 (-1.0, -1.0), (5.0, -1.0), (5.0, 2.0), (-1.0, 2.0)])
+    self.assertEqual(pas.polyareas[0].poly, [0, 1, 2, 3])
+    self.assertEqual(pas.polyareas[0].holes, [[4, 5, 6]])
+    self.assertEqual(pas.polyareas[0].color, (1.0, 0.0, 0.0))
+    self.assertEqual(pas.polyareas[1].poly, [7, 8, 9, 10])
+    self.assertEqual(pas.polyareas[1].holes, [])
+    self.assertEqual(pas.polyareas[1].color, (0.0, 1.0, 0.0))
 
 
 if __name__ == "__main__":

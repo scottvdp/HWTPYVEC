@@ -175,10 +175,10 @@ def ArtToModel(art, options):
 
 
 def PolyAreasToModel(polyareas, options):
-  """Convert a list of PolyAreas into a Model object.
+  """Convert a PolyAreas into a Model object.
   
   Args:
-    polyareas: list of geom.PolyArea
+    polyareas: geom.PolyAreas
     options: ImportOptions
   Returns:
     Model
@@ -189,7 +189,8 @@ def PolyAreasToModel(polyareas, options):
     return m
   pfaces = []
   pcolors = []
-  for pa in polyareas:
+  m.points = polyareas.points
+  for pa in polyareas.polyareas:
     if options.quadrangulate:
       if len(pa.poly) == 0:
         continue
@@ -197,12 +198,9 @@ def PolyAreasToModel(polyareas, options):
         qpa = triquad.QuadrangulateFace(pa.poly, pa.points)
       else:
         qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
-      vmap = m.points.AddPoints(pa.points)
-      mapped_qpa = [ _maptuple(t, vmap) for t in qpa ]
-      pfaces.extend(mapped_qpa)
-      pcolors.extend([ pa.color ] * len(mapped_qpa))
+      pfaces.extend(qpa)
+      pcolors.extend([ pa.color ] * len(qpa))
     else:
-      vmap = m.points.AddPoints(pa.points)
       pfaces.append(pa.poly)
       pcolors.append(pa.color)
   m.faces = pfaces
@@ -213,7 +211,7 @@ def PolyAreasToModel(polyareas, options):
 
 
 def AddPolyAreaToModel(polyarea, options):
-  ""Convert and add one PolyArea to a Model.
+  """Convert and add one PolyArea to a Model.
 
   Args:
     polyarea: geom.PolyArea
@@ -229,15 +227,9 @@ def AddPolyAreaToModel(polyarea, options):
   if polyarea.CoordDimen() == 2:
     polyarea.points = polyarea.points.AddZCoord(0.0)
   if options.extrude_depth > 0.0:
-    backpa = polyarea.Copy(translate=(0.0, 0.0, -options.extrude_depth)
+    backpa = polyarea.Copy(translate=(0.0, 0.0, -options.extrude_depth))
   if options.bevel_amount > 0.0:
     toppas = InsetPolyArea(polyarea, model)
-
-
-def _maptuple(t, vmap):
-  """Return a tuple t' where each index i in t is replaced by vmap[i]."""
-
-  return tuple([ vmap[i] for i in t ] )
 
 
 def OffsetToModel(off, vspeed, quadrangulate):
@@ -294,3 +286,60 @@ def _MakeInnerFacesOffsetModel(model, off, quadrangulate):
 
   # TODO
   pass
+
+
+def ExtrudePolyAreasInModel(model, polyareas, depth):
+  """Extrude the boundaries given by polyareas by -depth in z.
+
+  Arguments:
+    model: Model - where to do extrusion
+    polyareas: geom.Polyareas
+    depth: float
+  Side Effects:
+    For all edges in polys in polyareas, make quads in Model
+    extending those edges by depth in the negative z direction.
+    The color will be the color of the face that the edge is part of.
+  """
+
+  for pa in polyareas.polyareas:
+    _ExtrudePoly(model, pa.poly, depth, pa.color, True)
+    for p in pa.holes:
+      _ExtrudePoly(model, p, depth, pa.color, False)
+
+
+def _ExtrudePoly(model, poly, depth, color, isccw):
+  """Extrude the poly by -depth in z
+
+  Arguments:
+    model: Model - where to do extrusion
+    poly: list of vertex indices
+    depth: float
+    color: tuple of three floats
+    isccw: True if counter-clockwise
+  Side Effects
+    For all edges in poly, make quads in Model
+    extending those edges by depth in the negative z direction.
+    The color will be the color of the face that the edge is part of.
+  """
+
+  if len(poly) < 2:
+    return
+  points = model.points
+  if isccw:
+    incr = 1
+  else:
+    incr = -1
+  for i, v in enumerate(poly):
+    vnext = poly[(i+incr) % len(poly)]
+    (x0,y0,z0) = points.pos[v]
+    (x1,y1,z1) = points.pos[vnext]
+    vextrude = points.Add((x0,y0,z0-depth))
+    vnextextrude = points.Add((x1,y1,z1-depth))
+    if isccw:
+      sideface = [v, vextrude, vnextextrude, vnext]
+    else:
+      sideface = [v, vnext, vnextextrude, vextrude]
+    model.faces.append(sideface)
+    model.colors.append(color)
+
+
