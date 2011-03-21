@@ -120,14 +120,18 @@ class ImportOptions(object):
       polygonal areas
     scaled_side_target: float - scale model so that longest side
       is this length, if > 0.
-    z_sep: float - amount to separate paths by in z direction
+    extrude_depth: float - if > 0, extrude polygons up by this amount
+    bevel_amount: float - if > 0, inset polygons by this amount
+    bevel_pitch: float - if > 0, angle in radians of bevel
   """
 
   def __init__(self):
     self.quadrangulate = True
     self.convert_options = art2polyarea.ConvertOptions()
     self.scaled_side_target = 4.0
-    self.z_sep = 0.0
+    self.extrude_depth = 0.0
+    self.bevel_amount = 0.0
+    self.bevel_pitch = 0.0
 
 
 def ReadVecFileToModel(fname, options):
@@ -164,18 +168,18 @@ def ArtToModel(art, options):
   pareas = art2polyarea.ArtToPolyAreas(art, options.convert_options)
   if not pareas:
     return (None, "No visible faces found")
-  model = PolyAreasToModel(pareas, options.quadrangulate)
+  model = PolyAreasToModel(pareas, options)
   if model and options.scaled_side_target > 0:
     model.scale_and_center(options.scaled_side_target)
   return (model, "")
 
 
-def PolyAreasToModel(polyareas, quadrangulate):
+def PolyAreasToModel(polyareas, options):
   """Convert a list of PolyAreas into a Model object.
   
   Args:
     polyareas: list of geom.PolyArea
-    quadrangulate: bool - whether or not to quadrangulate n-gons
+    options: ImportOptions
   Returns:
     Model
   """
@@ -186,7 +190,7 @@ def PolyAreasToModel(polyareas, quadrangulate):
   pfaces = []
   pcolors = []
   for pa in polyareas:
-    if quadrangulate:
+    if options.quadrangulate:
       if len(pa.poly) == 0:
         continue
       if not pa.holes:
@@ -206,6 +210,28 @@ def PolyAreasToModel(polyareas, quadrangulate):
   if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
     m.points = m.points.AddZCoord(0.0)
   return m
+
+
+def AddPolyAreaToModel(polyarea, options):
+  ""Convert and add one PolyArea to a Model.
+
+  Args:
+    polyarea: geom.PolyArea
+    model: Model
+    options: ImportOptions
+  Side Effects:
+    Adds into model the faces resulting from processing polyarea according
+    to options.
+  """
+
+  backpa = None
+  toppas = None
+  if polyarea.CoordDimen() == 2:
+    polyarea.points = polyarea.points.AddZCoord(0.0)
+  if options.extrude_depth > 0.0:
+    backpa = polyarea.Copy(translate=(0.0, 0.0, -options.extrude_depth)
+  if options.bevel_amount > 0.0:
+    toppas = InsetPolyArea(polyarea, model)
 
 
 def _maptuple(t, vmap):

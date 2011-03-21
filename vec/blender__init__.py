@@ -39,6 +39,7 @@ else:
   from . import triquad
   from . import art2polyarea
 
+import math
 import bpy
 from bpy.props import *
 
@@ -80,11 +81,25 @@ class VectorImporter(bpy.types.Operator):
   use_colors = BoolProperty(name="Use colors",
       description="Use colors from vector file as materials",
       default=False)
-  z_sep = FloatProperty(name="Z separation",
-      description="Amount to separate paths by in z direction",
-      default=0.0,
-      min=0.0,
-      max=1000.0)
+  extrude_depth = FloatProperty(name="Extrude depth",
+    description="Depth of extrusion, if > 0",
+    default = 0.0,
+    min = 0.0,
+    max = 100.0,
+    unit = "LENGTH")
+  bevel_amount = FloatProperty(name="Bevel amount",
+    description="Amount of inward bevel, if > 0",
+    default = 0.0,
+    min = 0.0,
+    max = 1000.0,
+    unit = "LENGTH")
+  bevel_pitch = FloatProperty(name="Bevel pitch",
+    description="Angle of bevel from horizontal",
+    default = 45*math.pi / 180.0,
+    min = 0.0,
+    max = 89.0*math.pi / 180.0,
+    unit = "ROTATION")
+  
 
   def draw(self, context):
     layout = self.layout
@@ -97,7 +112,9 @@ class VectorImporter(bpy.types.Operator):
     box.prop(self, "ignore_white")
     box.prop(self, "combine_paths")
     box.prop(self, "use_colors")
-    # box.prop(self, "z_sep")
+    box.prop(self, "extrude_depth")
+    box.prop(self, "bevel_amount")
+    box.prop(self, "bevel_pitch")
 
   def execute(self, context):
     #convert the filename to an object name
@@ -106,7 +123,9 @@ class VectorImporter(bpy.types.Operator):
     options = model.ImportOptions()
     options.scaled_side_target = self.scale
     options.quadrangulate = True
-    options.z_sep = self.z_sep
+    options.extrude_depth = self.extrude_depth
+    options.bevel_amount = self.bevel_amount
+    options.bevel_pitch = self.bevel_pitch
     options.convert_options.subdiv_kind = self.subdiv_kind
     options.convert_options.smoothness = self.smoothness
     options.convert_options.filled_only = self.filled_only
