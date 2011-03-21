@@ -154,9 +154,6 @@ def ReadVecFileToModel(fname, options):
 def ArtToModel(art, options):
   """Convert an Art object into a Model object.
 
-  We apply scale_and_center to the model before returning,
-  using options.scaled_side_target, if it is greater than 0.
-
   Args:
     art: vecfile.Art - the Art object to convert.
     options: ImportOptions - specifies some choices about import
@@ -169,14 +166,15 @@ def ArtToModel(art, options):
   if not pareas:
     return (None, "No visible faces found")
   model = PolyAreasToModel(pareas, options)
-  if model and options.scaled_side_target > 0:
-    model.scale_and_center(options.scaled_side_target)
   return (model, "")
 
 
 def PolyAreasToModel(polyareas, options):
   """Convert a PolyAreas into a Model object.
-  
+
+  We apply scale_and_center to the model before returning,
+  using options.scaled_side_target, if it is greater than 0.
+
   Args:
     polyareas: geom.PolyAreas
     options: ImportOptions
@@ -207,29 +205,11 @@ def PolyAreasToModel(polyareas, options):
   m.colors = pcolors
   if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
     m.points = m.points.AddZCoord(0.0)
+  if options.scaled_side_target > 0:
+    m.scale_and_center(options.scaled_side_target)
+  if options.extrude_depth > 0:
+    ExtrudePolyAreasInModel(m, polyareas, options.extrude_depth)
   return m
-
-
-def AddPolyAreaToModel(polyarea, options):
-  """Convert and add one PolyArea to a Model.
-
-  Args:
-    polyarea: geom.PolyArea
-    model: Model
-    options: ImportOptions
-  Side Effects:
-    Adds into model the faces resulting from processing polyarea according
-    to options.
-  """
-
-  backpa = None
-  toppas = None
-  if polyarea.CoordDimen() == 2:
-    polyarea.points = polyarea.points.AddZCoord(0.0)
-  if options.extrude_depth > 0.0:
-    backpa = polyarea.Copy(translate=(0.0, 0.0, -options.extrude_depth))
-  if options.bevel_amount > 0.0:
-    toppas = InsetPolyArea(polyarea, model)
 
 
 def OffsetToModel(off, vspeed, quadrangulate):
@@ -333,8 +313,8 @@ def _ExtrudePoly(model, poly, depth, color, isccw):
     vnext = poly[(i+incr) % len(poly)]
     (x0,y0,z0) = points.pos[v]
     (x1,y1,z1) = points.pos[vnext]
-    vextrude = points.Add((x0,y0,z0-depth))
-    vnextextrude = points.Add((x1,y1,z1-depth))
+    vextrude = points.AddPoint((x0,y0,z0-depth))
+    vnextextrude = points.AddPoint((x1,y1,z1-depth))
     if isccw:
       sideface = [v, vextrude, vnextextrude, vnext]
     else:

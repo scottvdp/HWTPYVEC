@@ -7,7 +7,7 @@ from vec import geom
 from vec import offset
 from vec import showfaces
 
-SHOW = True  # should we show graphic plots of tested files?
+SHOW = False  # should we show graphic plots of tested files?
 
 class TestImportAIFile(unittest.TestCase):
 
@@ -62,6 +62,18 @@ class TestOffsetToModel(unittest.TestCase):
     m = model.OffsetToModel(o, 1.0, True)
     if SHOW:
       showfaces.ShowFaces(m.faces, m.points, "Irreg")
+
+
+class TestImportWithExtrude(unittest.TestCase):
+
+  def testExtrude4pt(self):
+    opt = model.ImportOptions()
+    opt.extrude_depth = 0.5
+    opt.convert_options.filled_only = False
+    opt.convert_options.smoothness = 0
+    (m, msg) = model.ReadVecFileToModel("testfiles/4pt.ai", opt)
+    self.assertEqual(msg, "")
+    self.assertEqual(len(m.faces), 5)
 
 if __name__ == "__main__":
   unittest.main()
