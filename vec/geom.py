@@ -181,6 +181,19 @@ class PolyArea(object):
     self.holes.append(holepoly)
 
 
+class PolyAreas(object):
+  """Contains a list of PolyAreas and a shared Points.
+
+  Attributes:
+    polyareas: list of PolyArea
+    points: Points
+  """
+
+  def __init__(self):
+    self.polyareas = []
+    self.points = Points()
+
+
 def ApproxEqualPoints(p, q):
   """Return True if p and q are approximately the same points.
 
