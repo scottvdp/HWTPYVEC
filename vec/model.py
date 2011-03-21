@@ -28,6 +28,8 @@ from . import geom
 from . import vecfile
 from . import art2polyarea
 from . import triquad
+from . import offset
+import math
 
 class Model(object):
   """Contains a generic 3d model.
@@ -185,24 +187,19 @@ def PolyAreasToModel(polyareas, options):
   m = Model()
   if not polyareas:
     return m
-  pfaces = []
-  pcolors = []
   m.points = polyareas.points
   for pa in polyareas.polyareas:
-    if options.quadrangulate:
+    if options.bevel_amount > 0.0:
+      BevelPolyAreaInModel(m, pa, options)
+    elif options.quadrangulate:
       if len(pa.poly) == 0:
         continue
-      if not pa.holes:
-        qpa = triquad.QuadrangulateFace(pa.poly, pa.points)
-      else:
-        qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
-      pfaces.extend(qpa)
-      pcolors.extend([ pa.color ] * len(qpa))
+      qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
+      m.faces.extend(qpa)
+      m.colors.extend([ pa.color ] * len(qpa))
     else:
-      pfaces.append(pa.poly)
-      pcolors.append(pa.color)
-  m.faces = pfaces
-  m.colors = pcolors
+      m.faces.append(pa.poly)
+      m.colors.append(pa.color)
   if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
     m.points = m.points.AddZCoord(0.0)
   if options.scaled_side_target > 0:
@@ -210,62 +207,6 @@ def PolyAreasToModel(polyareas, options):
   if options.extrude_depth > 0:
     ExtrudePolyAreasInModel(m, polyareas, options.extrude_depth)
   return m
-
-
-def OffsetToModel(off, vspeed, quadrangulate):
-  """Convert an Offset object into a Model object.
-
-  Args:
-    off: offset.Offset
-    vspeed: float - vertical speed - how fast height grows with time
-    quadrangulate: bool - if True quandrangulate any ngons
-  Returns:
-    Model
-  """
-
-  m = Model()
-  m.points = off.polyarea.points
-  if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
-    m.points = m.points.AddZCoord(0.0)
-  o = off
-  ostack = [ ]
-  while o:
-    if o.endtime == 0.0:
-      _MakeInnerFacesOffsetModel(m, o, quadrangulate)
-    else:
-      zouter = o.timesofar * vspeed
-      zinner = zouter + o.endtime * vspeed
-      for face in o.facespokes:
-        n = len(face)
-        for i, spoke in enumerate(face):
-          nextspoke = face[(i+1) % n]
-          v0 = spoke.origin
-          v1 = nextspoke.origin
-          v2 = nextspoke.dest
-          v3 = spoke.dest
-          for v in [v0, v1]:
-            m.points.ChangeZCoord(v, zouter)
-          for v in [v2, v3]:
-            m.points.ChangeZCoord(v, zinner)
-          if v2 == v3:
-            mface = [v0, v1, v2]
-          else:
-            mface = [v0, v1, v2, v3]
-          m.faces.append(mface)
-    ostack.extend(o.inneroffsets)
-    if ostack:
-      o = ostack.pop()
-    else:
-      o = None
-  return m
-
-
-def _MakeInnerFacesOffsetModel(model, off, quadrangulate):
-  """Make the inner faces, given by off, of model.
-  """
-
-  # TODO
-  pass
 
 
 def ExtrudePolyAreasInModel(model, polyareas, depth):
@@ -323,3 +264,80 @@ def _ExtrudePoly(model, poly, depth, color, isccw):
     model.colors.append(color)
 
 
+def BevelPolyAreaInModel(model, polyarea, options):
+  """Bevel the interior of polyarea in model.
+
+  This does smart beveling: advancing edges are merged
+  rather than doing an 'overlap'.  Advancing edges that
+  hit an opposite edge result in a split into two beveled areas.
+
+  For now, assume that area is on an xy plane. (TODO: fix)
+
+  Arguments:
+    model: Model - where to do bevel
+    polyarea geom.PolyArea - area to bevel into
+    options: ImportOptions
+  Side Effects:
+    Faces and points are added to model to model the
+    bevel and the interior of the polyareas.
+    Any faces that currently filled those areas are
+    deleted (TODO).
+  """
+
+  vspeed = math.tan(options.bevel_pitch)
+  off = offset.Offset(polyarea, 0.0)
+  off.Build(options.bevel_amount)
+  inner_pas = AddOffsetFacesToModel(model, off, vspeed, polyarea.color)
+  if options.quadrangulate:
+    pass  # TODO: quadrangulate the inner_pas
+
+
+def AddOffsetFacesToModel(m, off, vspeed, color = (0.0, 0.0, 0.0)):
+  """Add the faces due to an offset into model.
+
+  Returns the remaining interiors of the offset as a PolyAreas.
+
+  Args:
+    m: model to add offset faces into
+    off: offset.Offset
+    vspeed: float - vertical speed - how fast height grows with time
+    color: (float, float, float) - color to make the faces
+  Returns:
+    geom.PolyAreas
+  """
+
+  m.points = off.polyarea.points
+  if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
+    m.points = m.points.AddZCoord(0.0)
+  o = off
+  ostack = [ ]
+  while o:
+    if o.endtime == 0.0:
+      break
+    else:
+      zouter = o.timesofar * vspeed
+      zinner = zouter + o.endtime * vspeed
+      for face in o.facespokes:
+        n = len(face)
+        for i, spoke in enumerate(face):
+          nextspoke = face[(i+1) % n]
+          v0 = spoke.origin
+          v1 = nextspoke.origin
+          v2 = nextspoke.dest
+          v3 = spoke.dest
+          for v in [v0, v1]:
+            m.points.ChangeZCoord(v, zouter)
+          for v in [v2, v3]:
+            m.points.ChangeZCoord(v, zinner)
+          if v2 == v3:
+            mface = [v0, v1, v2]
+          else:
+            mface = [v0, v1, v2, v3]
+          m.faces.append(mface)
+          m.colors.append(color)
+    ostack.extend(o.inneroffsets)
+    if ostack:
+      o = ostack.pop()
+    else:
+      o = None
+  return off.InnerPolyAreas()

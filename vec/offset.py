@@ -556,3 +556,12 @@ class Offset(object):
 
     # TODO
     pass
+
+  def InnerPolyAreas(self):
+    """Return the interior of the offset (and contained offsets) as PolyAreas.
+
+    Returns:
+      geom.PolyAreas
+    """
+
+    return geom.PolyAreas()  # TODO
