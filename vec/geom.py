@@ -151,6 +151,8 @@ class PolyArea(object):
   outer boundary (implicitly closed).
   If there are holes, they are lists of CW-oriented vertices
   that should be contained in the outer boundary.
+  (So the left face of both the poly and the holes is
+  the filled part.)
 
   Attributes:
     points: Points
@@ -192,6 +194,52 @@ class PolyAreas(object):
   def __init__(self):
     self.polyareas = []
     self.points = Points()
+
+  def scale_and_center(self, scaled_side_target):
+    """Adjust the coordinates of the polyareas so that
+    it is centered at the origin and has its longest
+    dimension scaled to be scaled_side_target."""
+
+    if len(self.points.pos) == 0:
+      return
+    (minv, maxv) = self.bounds()
+    maxside = max([ maxv[i]-minv[i] for i in range(2) ])
+    if maxside > 0.0:
+      scale = scaled_side_target / maxside
+    else:
+      scale = 1.0
+    translate = [ -0.5*(maxv[i]+minv[i]) for i in range(2) ]
+    dim = len(self.points.pos[0])
+    if dim == 3:
+      translate.append([0.0])
+    for v in range(len(self.points.pos)):
+      self.points.pos[v] = [ scale*(self.points.pos[v][i] + translate[i]) for i in range(dim) ]
+
+  def bounds(self):
+    """Find bounding box of polyareas in xy. 
+
+    Returns:
+      ([minx,miny],[maxx,maxy]) - all floats
+    """
+
+    huge = 1e100
+    minv = [huge, huge]
+    maxv = [-huge, -huge]
+    for pa in self.polyareas:
+      for face in [ pa.poly ] + pa.holes:
+        for v in face:
+          vcoords = self.points.pos[v]
+          for i in range(2):
+            if vcoords[i] < minv[i]:
+              minv[i] = vcoords[i]
+            if vcoords[i] > maxv[i]:
+              maxv[i] = vcoords[i]
+    if minv[0] == huge:
+      minv = [0.0, 0.0]
+    if maxv[0] == huge:
+      maxv = [0.0, 0.0]
+    return (minv, maxv)
+
 
 
 def ApproxEqualPoints(p, q):

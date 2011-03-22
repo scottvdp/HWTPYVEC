@@ -79,5 +79,32 @@ class TestImportWithExtrude(unittest.TestCase):
     self.assertEqual(msg, "")
     self.assertEqual(len(m.faces), 5)
 
+class TestImportWithBevel(unittest.TestCase):
+
+  def testBevel4pt(self):
+    opt = model.ImportOptions()
+    opt.bevel_amount = .5
+    opt.convert_options.filled_only = False
+    opt.convert_options.smoothness = 0
+    (m, msg) = model.ReadVecFileToModel("testfiles/4pt.ai", opt)
+    self.assertEqual(msg, "")
+    self.assertEqual(len(m.faces), 5)
+    if SHOW:
+      showfaces.ShowFaces(m.faces, m.points, "Bevel 4pt")
+
+  def testBevel4_3(self):
+    opt = model.ImportOptions()
+    opt.bevel_amount = 0.05
+    opt.convert_options.filled_only = False
+    opt.convert_options.smoothness = 0
+    opt.convert_options.combine_paths = True
+    (m, msg) = model.ReadVecFileToModel("testfiles/4_3.ai", opt)
+    self.assertEqual(msg, "")
+    # self.assertEqual(len(m.faces), 5)
+    if SHOW:
+      showfaces.ShowFaces(m.faces, m.points, "Bevel 4_3")
+
+
+
 if __name__ == "__main__":
   unittest.main()

@@ -173,10 +173,7 @@ def ArtToModel(art, options):
 
 def PolyAreasToModel(polyareas, options):
   """Convert a PolyAreas into a Model object.
-
-  We apply scale_and_center to the model before returning,
-  using options.scaled_side_target, if it is greater than 0.
-
+  
   Args:
     polyareas: geom.PolyAreas
     options: ImportOptions
@@ -187,6 +184,8 @@ def PolyAreasToModel(polyareas, options):
   m = Model()
   if not polyareas:
     return m
+  if options.scaled_side_target > 0:
+    polyareas.scale_and_center(options.scaled_side_target)
   m.points = polyareas.points
   for pa in polyareas.polyareas:
     if options.bevel_amount > 0.0:
@@ -202,8 +201,6 @@ def PolyAreasToModel(polyareas, options):
       m.colors.append(pa.color)
   if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
     m.points = m.points.AddZCoord(0.0)
-  if options.scaled_side_target > 0:
-    m.scale_and_center(options.scaled_side_target)
   if options.extrude_depth > 0:
     ExtrudePolyAreasInModel(m, polyareas, options.extrude_depth)
   return m
@@ -288,8 +285,16 @@ def BevelPolyAreaInModel(model, polyarea, options):
   off = offset.Offset(polyarea, 0.0)
   off.Build(options.bevel_amount)
   inner_pas = AddOffsetFacesToModel(model, off, vspeed, polyarea.color)
-  if options.quadrangulate:
-    pass  # TODO: quadrangulate the inner_pas
+  for pa in inner_pas.polyareas:
+    if options.quadrangulate:
+      if len(pa.poly) == 0:
+        continue
+      qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
+      model.faces.extend(qpa)
+      model.colors.extend([ pa.color ] * len(qpa))
+    else:
+      model.faces.append(pa.poly)
+      model.colors.append(pa.color)
 
 
 def AddOffsetFacesToModel(m, off, vspeed, color = (0.0, 0.0, 0.0)):

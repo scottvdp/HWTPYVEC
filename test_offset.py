@@ -300,5 +300,17 @@ class TestBuild(unittest.TestCase):
     o.Build()
     ShowOffset(o)
 
+class TestInnerPolyAreas(unittest.TestCase):
+
+  def runTest(self):
+    pa = geom.PolyArea(Vs1, F1tri)
+    o = offset.Offset(pa, 0.0)
+    o.Build(0.1)
+    pas = o.InnerPolyAreas()
+    self.assertEqual(len(pas.polyareas), 1)
+    ipa = pas.polyareas[0]
+    self.assertEqual(len(ipa.poly), 3)
+
+
 if __name__ == "__main__":
   unittest.main()

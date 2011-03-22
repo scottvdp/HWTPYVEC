@@ -319,9 +319,9 @@ class Offset(object):
     self.endtime = 0.0
     self.timesofar = time
     self.inneroffsets = []
-    self.InitFaceSpokes(polyarea.poly, True)
+    self.InitFaceSpokes(polyarea.poly)
     for f in polyarea.holes:
-      self.InitFaceSpokes(f, False)
+      self.InitFaceSpokes(f)
 
   def __repr__(self):
     ans = ["Offset: endtime=%g" % self.endtime]
@@ -329,14 +329,13 @@ class Offset(object):
       ans.append(("<%d>" % i) + str([ str(spoke) for spoke in face ]))
     return '\n'.join(ans)
 
-  def InitFaceSpokes(self, face_vertices, isccw):
+  def InitFaceSpokes(self, face_vertices):
     """Initialize the offset representation of a face from vertex list.
 
     If the face has no area or too small an area, don't bother making it.
 
     Args:
       face_vertices: list of int - point indices for boundary of face
-      isccw: bool - True if face goes counterclockwise
     Side effect:
       A new face (list of spokes) may be added to self.facespokes
     """
@@ -348,15 +347,9 @@ class Offset(object):
     area = abs(geom.SignedArea(face_vertices, points))
     if area < AREATOL:
       return
-    if isccw:
-      previnc = -1
-      nextinc = 1
-    else:
-      previnc = 1
-      nextinc = -1
     findex = len(self.facespokes)
-    fspokes = [ Spoke(v, face_vertices[(i+previnc) % n], \
-        face_vertices[(i+nextinc) % n], findex, i, points) \
+    fspokes = [ Spoke(v, face_vertices[(i-1) % n], \
+        face_vertices[(i+1) % n], findex, i, points) \
         for i, v in enumerate(face_vertices) ]
     self.facespokes.append(fspokes)
 
@@ -448,9 +441,8 @@ class Offset(object):
     nexttarget = target - self.endtime
     if len(newfaces) > 0:
       pa = geom.PolyArea(points = self.polyarea.points)
-      if len(newfaces) > 1:
-        print("Need to implement this")
       pa.poly = newfaces[0]
+      pa.holes = newfaces[1:]
       pa.color = self.polyarea.color
       self.inneroffsets = [ Offset(pa, self.timesofar+self.endtime) ]
       if nexttarget > TOL:
@@ -585,22 +577,21 @@ def _AddInnerAreas(off, polyareas):
 
   if off.inneroffsets:
     for o in off.inneroffsets:
-      _AddInnerAreas(o)
+      _AddInnerAreas(o, polyareas)
   else:
     newpa = geom.PolyArea(polyareas.points)
     for i, f in enumerate(off.facespokes):
       newface = off.FaceAtSpokeEnds(f, off.endtime)
-      area = abs(geom.SignedArea(newface, polyarea.points))
+      area = abs(geom.SignedArea(newface, polyareas.points))
       if area < AREATOL:
         if i == 0:
-	  break
-	else:
-	  continue
+         break
+        else:
+         continue
       if i == 0:
         newpa.poly = newface
-	newpa.color = off.polyarea.color
+        newpa.color = off.polyarea.color
       else:
-        newface.reverse()
         newpa.holes.append(newface)
     if newpa.poly:
       polyareas.polyareas.append(newpa)
