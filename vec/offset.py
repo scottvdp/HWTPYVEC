@@ -564,4 +564,45 @@ class Offset(object):
       geom.PolyAreas
     """
 
-    return geom.PolyAreas()  # TODO
+    ans = geom.PolyAreas()
+    ans.points = self.polyarea.points
+    _AddInnerAreas(self, ans)
+    return ans
+
+
+def _AddInnerAreas(off, polyareas):
+  """Add the innermost areas of offset off to polyareas.
+
+  Assume that polyareas is already using the proper shared points.
+
+  Arguments:
+    off: Offset
+    polyareas: geom.PolyAreas
+  Side Effects:
+    Any non-zero-area faces in the very inside of off are
+    added to polyareas.
+  """
+
+  if off.inneroffsets:
+    for o in off.inneroffsets:
+      _AddInnerAreas(o)
+  else:
+    newpa = geom.PolyArea(polyareas.points)
+    for i, f in enumerate(off.facespokes):
+      newface = off.FaceAtSpokeEnds(f, off.endtime)
+      area = abs(geom.SignedArea(newface, polyarea.points))
+      if area < AREATOL:
+        if i == 0:
+	  break
+	else:
+	  continue
+      if i == 0:
+        newpa.poly = newface
+	newpa.color = off.polyarea.color
+      else:
+        newface.reverse()
+        newpa.holes.append(newface)
+    if newpa.poly:
+      polyareas.polyareas.append(newpa)
+
+        
