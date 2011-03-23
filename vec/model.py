@@ -56,45 +56,6 @@ class Model(object):
     self.faces = []
     self.colors = []
 
-  def bounds(self):
-    """Find bounding box of model. 
-
-    Returns:
-      ([minx,miny,minz],[maxx,maxy,maxz])
-    """
-
-    huge = 1e100
-    minv = [huge, huge, huge]
-    maxv = [-huge, -huge, -huge]
-    for face in self.faces:
-      for v in face:
-        vcoords = self.points.pos[v]
-        for i in range(3):
-          if vcoords[i] < minv[i]:
-            minv[i] = vcoords[i]
-          if vcoords[i] > maxv[i]:
-            maxv[i] = vcoords[i]
-    if minv[0] == huge:
-      minv = [0.0, 0.0, 0.0]
-    if maxv[0] == huge:
-      maxv = [0.0, 0.0, 0.0]
-    return (minv, maxv)
-
-  def scale_and_center(self, scaled_side_target):
-    """Adjust the coordinates of the model so that
-    it is centered at the origin and has its longest
-    dimension scaled to be scaled_side_target."""
-
-    (minv, maxv) = self.bounds()
-    maxside = max([ maxv[i]-minv[i] for i in range(3) ])
-    if maxside > 0.0:
-      scale = scaled_side_target / maxside
-    else:
-      scale = 1.0
-    translate = [ -0.5*(maxv[i]+minv[i]) for i in range(3) ]
-    for v in range(len(self.points.pos)):
-      self.points.pos[v] = [ scale*(self.points.pos[v][i] + translate[i]) for i in range(3) ]
-
   def writeObjFile(self, fname):
     """Write the model as a .obj format file.
 
@@ -133,7 +94,7 @@ class ImportOptions(object):
     self.scaled_side_target = 4.0
     self.extrude_depth = 0.0
     self.bevel_amount = 0.0
-    self.bevel_pitch = 0.0
+    self.bevel_pitch = 45.0 * math.pi / 180.0
 
 
 def ReadVecFileToModel(fname, options):
@@ -186,6 +147,7 @@ def PolyAreasToModel(polyareas, options):
     return m
   if options.scaled_side_target > 0:
     polyareas.scale_and_center(options.scaled_side_target)
+  polyareas.points.AddZCoord(0.0)
   m.points = polyareas.points
   for pa in polyareas.polyareas:
     if options.bevel_amount > 0.0:
@@ -199,8 +161,6 @@ def PolyAreasToModel(polyareas, options):
     else:
       m.faces.append(pa.poly)
       m.colors.append(pa.color)
-  if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
-    m.points = m.points.AddZCoord(0.0)
   if options.extrude_depth > 0:
     ExtrudePolyAreasInModel(m, polyareas, options.extrude_depth)
   return m
@@ -312,8 +272,7 @@ def AddOffsetFacesToModel(m, off, vspeed, color = (0.0, 0.0, 0.0)):
   """
 
   m.points = off.polyarea.points
-  if len(m.points.pos) > 0 and len(m.points.pos[0]) == 2:
-    m.points = m.points.AddZCoord(0.0)
+  assert(len(m.points.pos) == 0 or len(m.points.pos[0]) == 3)
   o = off
   ostack = [ ]
   while o:

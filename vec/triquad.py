@@ -1146,9 +1146,9 @@ def Ccw(a, b, c, points):
   where a, b, and c are indices into points.
   Returns false if not, or if colinear within TOL."""
 
-  (ax, ay) = points.pos[a]
-  (bx, by) = points.pos[b]
-  (cx, cy) = points.pos[c]
+  (ax, ay) = (points.pos[a][0], points.pos[a][1])
+  (bx, by) = (points.pos[b][0], points.pos[b][1])
+  (cx, cy) = (points.pos[c][0], points.pos[c][1])
   d = ax * by - bx * ay - ax * cy + cx * ay + bx * cy - cx * by
   return d > TOL
 
@@ -1177,5 +1177,5 @@ def InCircle(a, b, c, d, points):
 
 
 def _Icc(p):
-  (x, y) = p
+  (x, y) = (p[0], p[1])
   return (x, y, x * x + y * y)

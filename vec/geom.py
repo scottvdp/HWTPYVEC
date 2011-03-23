@@ -113,21 +113,22 @@ class Points(object):
     return vmap
 
   def AddZCoord(self, z):
-    """Return a new Points that is copy of this but with a z coordinate.
+    """Change this in place to have a z coordinate, with value z.
 
     Assumes the coordinates are currently 2d.
 
     Args:
       z: the value of the z coordinate to add
-    Returns:
-      Points - copy of self, but with a z-coordinate added
+    Side Effect:
+      self now has a z-coordinate added
     """
 
     assert(len(self.pos) == 0 or len(self.pos[0]) == 2)
-    ans = Points()
+    tmp = Points()
     for (x,y) in self.pos:
-      ans.AddPoint((x, y, z))
-    return ans
+      tmp.AddPoint((x, y, z))
+    self.pos = tmp.pos
+    self.invmap = tmp.invmap
 
   def ChangeZCoord(self, i, z):
     """Change the z-coordinate of point with index i.
@@ -213,7 +214,7 @@ class PolyAreas(object):
     if dim == 3:
       translate.append([0.0])
     for v in range(len(self.points.pos)):
-      self.points.pos[v] = [ scale*(self.points.pos[v][i] + translate[i]) for i in range(dim) ]
+      self.points.pos[v] = tuple([ scale*(self.points.pos[v][i] + translate[i]) for i in range(dim) ])
 
   def bounds(self):
     """Find bounding box of polyareas in xy. 

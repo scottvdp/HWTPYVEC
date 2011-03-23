@@ -38,7 +38,7 @@ class Spoke(object):
     origin: int - index of origin point in a Points
     dest: int - index of dest point
     is_reflex: bool - True if spoke grows from a reflex angle
-    dir: (float, float) - direction vector (normalized)
+    dir: (float, float, float) - direction vector (normalized)
     speed: float - at time t, other end of spoke is
         origin + t*dir.  Speed is such that the wavefront
         from the face edges moves at speed 1.
@@ -79,12 +79,12 @@ class Spoke(object):
     uavg = Normalized2((0.5*(uin[0]+uout[0]), 0.5*(uin[1]+uout[1])))
     if abs(Length2(uavg)) < TOL:
       # in and out vectors are reverse of each other
-      self.dir = uout
+      self.dir = (uout[0], uout[1], 0.0)
       self.is_reflex = False
       self.speed = 1e7
     else:
       # bisector direction is 90 degree CCW rotation of average incoming/outgoing
-      self.dir = (-uavg[1], uavg[0])
+      self.dir = (-uavg[1], uavg[0], 0.0)
       self.is_reflex = Ccw(next, v, prev, points)
       ang = Angle(prev, v, next, points)  # in range [0, 180)
       sin_half_ang = math.sin(math.pi*ang / 360.0)
@@ -113,6 +113,7 @@ class Spoke(object):
     p = points.pos[self.origin]
     d = self.dir
     v = self.speed
+    return tuple([ p[i] + v*t*d[i] for i in range(len(p)) ])
     return ((p[0]+v*t*d[0], p[1]+v*t*d[1]))
 
 

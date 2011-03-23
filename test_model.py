@@ -100,10 +100,22 @@ class TestImportWithBevel(unittest.TestCase):
     opt.convert_options.combine_paths = True
     (m, msg) = model.ReadVecFileToModel("testfiles/4_3.ai", opt)
     self.assertEqual(msg, "")
-    # self.assertEqual(len(m.faces), 5)
+    self.assertEqual(len(m.faces), 13)
     if SHOW:
       showfaces.ShowFaces(m.faces, m.points, "Bevel 4_3")
 
+
+  def testBevel3dout(self):
+    opt = model.ImportOptions()
+    opt.bevel_amount = 0.05
+    opt.convert_options.filled_only = False
+    opt.convert_options.smoothness = 0
+    opt.convert_options.combine_paths = True
+    (m, msg) = model.ReadVecFileToModel("testfiles/3dout.ai", opt)
+    self.assertEqual(msg, "")
+    self.assertEqual(len(m.faces), 44)
+    if SHOW:
+      showfaces.ShowFaces(m.faces, m.points, "Bevel 3dout")
 
 
 if __name__ == "__main__":
