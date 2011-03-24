@@ -46,6 +46,7 @@ from bpy.props import *
 class VectorImporter(bpy.types.Operator):
   bl_idname = "import.aipdf"
   bl_label = "Import AI/PDF"
+  bl_options = {"REGISTER", "UNDO"}
 
   filepath = StringProperty(name="File Path",
     description="Filepath used for importing the vector file",
@@ -105,6 +106,7 @@ class VectorImporter(bpy.types.Operator):
     layout = self.layout
     box = layout.box()
     box.label("Import Options")
+    box.prop(self, "filepath")
     box.prop(self, "smoothness")
     box.prop(self, "scale")
     box.prop(self, "subdiv_kind")
@@ -116,8 +118,10 @@ class VectorImporter(bpy.types.Operator):
     box.prop(self, "bevel_amount")
     box.prop(self, "bevel_pitch")
 
-  def execute(self, context):
+  def action(self, context):
     #convert the filename to an object name
+    if not self.filepath:
+      return
     objname = bpy.path.display_name(self.filepath.split("\\")[-1].split("/")[-1])
 
     options = model.ImportOptions()
@@ -147,12 +151,19 @@ class VectorImporter(bpy.types.Operator):
     bpy.ops.object.select_all(action = "DESELECT")
     obj.select = True
     context.scene.objects.active = obj
+
+  def execute(self, context):
+    self.action(context)
     return {"FINISHED"}
 
   def invoke(self, context, event):
-    wm = context.window_manager
-    wm.fileselect_add(self)
-    return {"RUNNING_MODAL"}
+    if self.filepath:
+      self.action(context)
+      return {"FINISHED"}
+    else:
+      wm = context.window_manager
+      wm.fileselect_add(self)
+      return {"RUNNING_MODAL"}
 
 def add_colors(mesh, colors):
   # assume colors are parallel to faces in mesh
@@ -177,7 +188,7 @@ def add_colors(mesh, colors):
   
 
 def menu_import(self, context):
-  self.layout.operator(VectorImporter.bl_idname, text="Adobe Illustrator or PDF files (.ai, .pdf)").filepath = "*.ai, *.pdf"
+  self.layout.operator(VectorImporter.bl_idname, text="Adobe Illustrator or PDF files (.ai, .pdf)") #.filepath = "*.ai, *.pdf"
 
 def register():
   bpy.utils.register_module(__name__)
