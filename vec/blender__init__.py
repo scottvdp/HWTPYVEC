@@ -19,7 +19,7 @@
 bl_info = {
   "name": "Adobe Illustrator / PDF",
   "author": "Howard Trickey",
-  "version": (0, 4),
+  "version": (0, 5),
   "blender": (2, 5, 6),
   "api": 35040,
   "location": "File > Import-Export > Adobe Illustrator/PDF ",
@@ -157,13 +157,12 @@ class VectorImporter(bpy.types.Operator):
     return {"FINISHED"}
 
   def invoke(self, context, event):
-    if self.filepath:
-      self.action(context)
-      return {"FINISHED"}
-    else:
-      wm = context.window_manager
-      wm.fileselect_add(self)
-      return {"RUNNING_MODAL"}
+    self.action(context)
+    return {"FINISHED"}
+    # the modal way
+    #wm = context.window_manager
+    #wm.fileselect_add(self)
+    #return {"RUNNING_MODAL"}
 
 def add_colors(mesh, colors):
   # assume colors are parallel to faces in mesh

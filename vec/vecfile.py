@@ -261,8 +261,6 @@ def ParseVecFile(filename):
   else:
     return None
 
-import pprint
-
 def ParseAIEPSFile(filename):
   """Parse an AI (eps kind) file and return an Art object for it.
 
@@ -273,7 +271,6 @@ def ParseAIEPSFile(filename):
   """
 
   toks = TokenizeAIEPSFile(filename)
-  pprint.pprint(toks)
   return ParsePS(toks, "ai", "eps")
 
 

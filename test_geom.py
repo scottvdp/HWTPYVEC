@@ -24,10 +24,8 @@ class TestPointsAddPoint(unittest.TestCase):
     self.assertEqual(len(pts.pos), 1)
     self.assertEqual(v0, 0)
     self.assertEqual(pts.pos[0], (0.5, -1.0))
-    v1 = pts.AddPoint((0.501, -1.0))
+    v1 = pts.AddPoint((0.5003, -1.0))
     self.assertEqual(v1, 0)
-    v2 = pts.AddPoint((0.502, -1.0))
-    self.assertEqual(v2, 1)
 
 
 class TestPointsAddPoints(unittest.TestCase):

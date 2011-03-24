@@ -38,12 +38,7 @@ class Points(object):
   Implementation:
   In order to efficiently find duplicates, we quantize the points
   to triples of ints and map from quantized triples to vertex
-  index.  When searching to see if a point already exists, we
-  check each of the 9 buckets for (x, y) with x and y within
-  1 of the given quantization.
-  For 3d coordinates, we require exact match on
-  quantized z, since we control z ourselves in  all our
-  applications of this library.
+  index.
 
   Attributes:
     pos: list of tuple of float - coordinates indexed by
@@ -73,7 +68,7 @@ class Points(object):
   def AddPoint(self, p):
     """Add point p to the Points set and return vertex number.
 
-    If there is an existing point within DISTTOL in all dimensions,
+    If there is an existing point which quantizes the same,,
     don't add a new one but instead return existing index.
 
     Args:
@@ -83,16 +78,12 @@ class Points(object):
     """
 
     qp = Points.Quantize(p)
-    qx = qp[0]
-    qy = qp[1]
-    for i in range(-1, 2):
-      for j in range(-1, 2):
-        tryqp = (qx+i, qy+j) + qp[2:]
-        if tryqp in self.invmap:
-          return self.invmap[tryqp]
-    self.invmap[qp] = len(self.pos)
-    self.pos.append(p)
-    return len(self.pos)-1
+    if qp in self.invmap:
+      return self.invmap[qp]
+    else:
+      self.invmap[qp] = len(self.pos)
+      self.pos.append(p)
+      return len(self.pos)-1
 
   def AddPoints(self, points):
     """Add another set of points to this set.
@@ -124,11 +115,12 @@ class Points(object):
     """
 
     assert(len(self.pos) == 0 or len(self.pos[0]) == 2)
-    tmp = Points()
-    for (x,y) in self.pos:
-      tmp.AddPoint((x, y, z))
-    self.pos = tmp.pos
-    self.invmap = tmp.invmap
+    newinvmap = dict()
+    for i, (x,y) in enumerate(self.pos):
+      newp = (x, y, z)
+      self.pos[i] = newp
+      newinvmap[self.Quantize(newp)] = i
+    self.invmap = newinvmap
 
   def ChangeZCoord(self, i, z):
     """Change the z-coordinate of point with index i.
