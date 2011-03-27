@@ -19,7 +19,7 @@
 bl_info = {
   "name": "Adobe Illustrator / PDF",
   "author": "Howard Trickey",
-  "version": (0, 5),
+  "version": (0, 6),
   "blender": (2, 5, 6),
   "api": 35040,
   "location": "File > Import-Export > Adobe Illustrator/PDF ",
@@ -100,7 +100,14 @@ class VectorImporter(bpy.types.Operator):
     min = 0.0,
     max = 89.0*math.pi / 180.0,
     unit = "ROTATION")
-  
+  cap_back = BoolProperty(name="Cap back",
+    description="Cap the back if extruding",
+    default = False)
+  # some info display properties
+  num_verts = IntProperty(name="Number of vertices",
+    default = 0)
+  num_faces = IntProperty(name="Number of faces",
+    default = 0)  
 
   def draw(self, context):
     layout = self.layout
@@ -117,19 +124,26 @@ class VectorImporter(bpy.types.Operator):
     box.prop(self, "extrude_depth")
     box.prop(self, "bevel_amount")
     box.prop(self, "bevel_pitch")
+    box.prop(self, "cap_back")
+    if self.num_verts > 0:
+      layout.label(text="Ve:" + str(self.num_verts) + \
+        " | Fa:" + str(self.num_faces))
 
   def action(self, context):
     #convert the filename to an object name
     if not self.filepath:
       return
-    objname = bpy.path.display_name(self.filepath.split("\\")[-1].split("/")[-1])
-
+    # objname = bpy.path.display_name(self.filepath.split("\\")[-1].split("/")[-1])
+    objname = self.filepath.split("\\")[-1].split("/")[-1]
+    if objname.find(".") > 0:
+      objname = objname.split(".")[0]
     options = model.ImportOptions()
     options.scaled_side_target = self.scale
     options.quadrangulate = True
     options.extrude_depth = self.extrude_depth
     options.bevel_amount = self.bevel_amount
     options.bevel_pitch = self.bevel_pitch
+    options.cap_back = self.cap_back
     options.convert_options.subdiv_kind = self.subdiv_kind
     options.convert_options.smoothness = self.smoothness
     options.convert_options.filled_only = self.filled_only
@@ -140,12 +154,14 @@ class VectorImporter(bpy.types.Operator):
       self.report({"ERROR"}, "Problem reading file " + self.filepath + ": " + msg)
       return {"FINISHED"}
     verts = mdl.points.pos
-    faces = mdl.faces
+    faces = [ f for f in mdl.faces if 3 <= len(f) <= 4 ]
     mesh = bpy.data.meshes.new(objname)
     mesh.from_pydata(verts, [], faces)
     if self.use_colors:
       add_colors(mesh, mdl.colors)
     mesh.update()
+    self.num_verts = len(verts)
+    self.num_faces = len(faces)
     obj = bpy.data.objects.new(objname, mesh)
     context.scene.objects.link(obj)
     bpy.ops.object.select_all(action = "DESELECT")

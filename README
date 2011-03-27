@@ -3,13 +3,19 @@ Python Vector Art Utilities for 3d
 Blender Import AI and PDF Addon
 To install it: 
 
- * Make sure you have a recent build of Blender 2.56 from graphicall.org (build 35333 or later works)
- * Find your blender installation's addons directory (something like 2.56/scripts/addons under wherever you installed blender and make an io_vector dir
- * Use the tobl to copy the required files to io_vector (and rename the init file); you'll need to edit the script to put the right destination in
+ * Make sure you have a recent build of Blender 2.56 from graphicall.org
+   (build 35333 or later works)
+ * Find your blender installation's addons directory
+   (something like 2.56/scripts/addons under wherever you installed blender)
+   and make an io_vector dir
+ * Use the tobl to copy the required files to io_vector (and rename the init file);
+   you'll need to edit the script to put the right destination in
  * Start Blender, go to user Preferences, and enable Import-Export: Vector import
 
 To use it:
  * From Blender's File menu, select Import > Vector files (.ai, .pdf)
+ * Select an Adobe Illustrator (any version should work) or PDF file
+   that contains some shapes
  * Perhaps change some of the Import Options in the tool panel for this addon.  Current options:
    o Smoothness: the bigger the number, the closer the approximation to curves by line segments
    o Scale: the number of Blender units for the longest side of the converted art
@@ -20,5 +26,23 @@ To use it:
    o Filled paths only: ignore paths that aren't filled
    o Ignore white-filled: ignore paths that are filled with white (probably the background)
    o Combine paths: look at all paths together to decide where the holes are (will be slower)
-   o Use colors: use the fill colors of solidly filled paths to make Blender materials for those polygons
- * Select an Adobe Illustrator (any version should work) or PDF file that contains some shapes and hit the 'Import Vector' button
+   o Use colors: use the fill colors of solidly filled paths to make Blender materials
+     for those polygons
+   o Extrude depth: if you want the polygons extruded, set this > 0
+   o Bevel amount: if you want the polygons beveled, set this > 0
+   o Bevel pitch: if beveling, this is the number of degrees from
+     horizontal that the bevel sides pitch up
+
+Version history:
+0.6: (TBD) Added display of number of vertices and faces.
+  Added cap_back option for capping the back.
+  Changed object name to be file name without extension.
+0.5: (3/25/11) Added bevel and extrude.  Bevel only works until
+  first 'edge event'. Changed to Object, Action, Settings interaction
+  mode, but still buggy (need to select file from a panel property
+  and need to change some other parameter before anything happens).
+0.4: (3/14/11) Added even subdivision and initial color support
+0.3: (3/8/11) Added adapative subdivision and ability to work with
+  non-filled paths, and to combine multiple paths if desired
+0.2: (3/7/11) Changed registration to work with later API.
+0.1: (3/2/11) Initial version.  Uniform subdivision, filled paths only.

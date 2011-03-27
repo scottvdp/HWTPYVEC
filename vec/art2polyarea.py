@@ -121,6 +121,7 @@ def PathToPolyAreas(path, options, points):
 
   subpolyareas = [ _SubpathToPolyArea(sp, options, points, path.fillpaint.color) \
       for sp in path.subpaths ]
+  subpolyareas = [ pa for pa in subpolyareas if len(pa.poly) > 0 ]
   return CombineSimplePolyAreas(subpolyareas)
 
 

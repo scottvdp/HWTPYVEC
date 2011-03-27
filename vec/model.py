@@ -86,6 +86,7 @@ class ImportOptions(object):
     extrude_depth: float - if > 0, extrude polygons up by this amount
     bevel_amount: float - if > 0, inset polygons by this amount
     bevel_pitch: float - if > 0, angle in radians of bevel
+    cap_back: bool - should we cap the back, if extruding?
   """
 
   def __init__(self):
@@ -95,6 +96,7 @@ class ImportOptions(object):
     self.extrude_depth = 0.0
     self.bevel_amount = 0.0
     self.bevel_pitch = 45.0 * math.pi / 180.0
+    self.cap_back = False
 
 
 def ReadVecFileToModel(fname, options):
@@ -150,29 +152,35 @@ def PolyAreasToModel(polyareas, options):
   polyareas.points.AddZCoord(0.0)
   m.points = polyareas.points
   for pa in polyareas.polyareas:
-    if options.bevel_amount > 0.0:
-      BevelPolyAreaInModel(m, pa, options)
-    elif options.quadrangulate:
-      if len(pa.poly) == 0:
-        continue
-      qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
-      m.faces.extend(qpa)
-      m.colors.extend([ pa.color ] * len(qpa))
-    else:
-      m.faces.append(pa.poly)
-      m.colors.append(pa.color)
+    _PolyAreaToModel(m, pa, options)
   if options.extrude_depth > 0:
-    ExtrudePolyAreasInModel(m, polyareas, options.extrude_depth)
+    ExtrudePolyAreasInModel(m, polyareas, options.extrude_depth,
+      options.cap_back)
   return m
 
 
-def ExtrudePolyAreasInModel(model, polyareas, depth):
+def _PolyAreaToModel(m, pa, options):
+  if options.bevel_amount > 0.0:
+    BevelPolyAreaInModel(m, pa, options)
+  elif options.quadrangulate:
+    if len(pa.poly) == 0:
+      return
+    qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
+    m.faces.extend(qpa)
+    m.colors.extend([ pa.color ] * len(qpa))
+  else:
+    m.faces.append(pa.poly)
+    m.colors.append(pa.color)
+
+
+def ExtrudePolyAreasInModel(model, polyareas, depth, cap_back):
   """Extrude the boundaries given by polyareas by -depth in z.
 
   Arguments:
     model: Model - where to do extrusion
     polyareas: geom.Polyareas
     depth: float
+    cap_back: bool - if True, cap off the back
   Side Effects:
     For all edges in polys in polyareas, make quads in Model
     extending those edges by depth in the negative z direction.
@@ -180,9 +188,20 @@ def ExtrudePolyAreasInModel(model, polyareas, depth):
   """
 
   for pa in polyareas.polyareas:
-    _ExtrudePoly(model, pa.poly, depth, pa.color, True)
+    back_poly = _ExtrudePoly(model, pa.poly, depth, pa.color, True)
+    back_holes = []
     for p in pa.holes:
-      _ExtrudePoly(model, p, depth, pa.color, False)
+      back_holes.append(_ExtrudePoly(model, p, depth, pa.color, False))
+    if cap_back:
+      qpa = triquad.QuadrangulateFaceWithHoles(back_poly, back_holes,
+        polyareas.points)
+      # need to reverse each poly to get normals pointing down
+      for i, p in enumerate(qpa):
+        t = list(p)
+        t.reverse()
+        qpa[i] = tuple(t)
+      model.faces.extend(qpa)
+      model.colors.extend([pa.color] * len(qpa))
 
 
 def _ExtrudePoly(model, poly, depth, color, isccw):
@@ -198,10 +217,13 @@ def _ExtrudePoly(model, poly, depth, color, isccw):
     For all edges in poly, make quads in Model
     extending those edges by depth in the negative z direction.
     The color will be the color of the face that the edge is part of.
+  Returns:
+    list of int - vertices for extruded poly
   """
 
   if len(poly) < 2:
     return
+  extruded_poly = []
   points = model.points
   if isccw:
     incr = 1
@@ -219,6 +241,8 @@ def _ExtrudePoly(model, poly, depth, color, isccw):
       sideface = [v, vnext, vnextextrude, vextrude]
     model.faces.append(sideface)
     model.colors.append(color)
+    extruded_poly.append(vextrude)
+  return extruded_poly
 
 
 def BevelPolyAreaInModel(model, polyarea, options):
