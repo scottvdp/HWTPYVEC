@@ -448,7 +448,7 @@ class TransformMatrix(object):
     return (self.a*x + self.c*y + self.e, self.b*x + self.d*y + self.f)
 
 
-class _GState(object):
+class GState(object):
   """Object to hold graphic state.
 
   Attributes:
@@ -465,7 +465,7 @@ class _GState(object):
   def Copy(self):
     """Return a copy of this graphics state."""
 
-    gs = _GState()
+    gs = GState()
     gs.ctm = self.ctm.Copy()
     gs.fillpaint = self.fillpaint  # ok to share, paint is immutable
     gs.strokepaint = self.strokepaint
@@ -481,8 +481,8 @@ class _PathState(object):
     cursubpath: Subpath - not yet added into curpath
     curpoint: coordinates of current point, None if none
     incompound: true if parsing an ai/eps compound path
-    gstate: _GState - the current graphics state
-    gstack: list of _GState - stack when graphics state pushed
+    gstate: GState - the current graphics state
+    gstack: list of GState - stack when graphics state pushed
     messages: list of string - warnings, errors
   """
 
@@ -492,7 +492,7 @@ class _PathState(object):
     self.art = Art()
     self.ResetPath()
     self.incompound = False
-    self.gstate = _GState()
+    self.gstate = GState()
     self.statestack = []
     self.messages = []
 
