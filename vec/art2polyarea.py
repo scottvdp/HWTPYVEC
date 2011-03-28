@@ -73,7 +73,7 @@ def ArtToPolyAreas(art, options):
   separately.
 
   Args:
-    art: vecfile.Art - contains Paths to convert
+    art: geom.Art - contains Paths to convert
     options: ConvertOptions
   Returns:
     geom.PolyAreas
@@ -85,13 +85,13 @@ def ArtToPolyAreas(art, options):
     paths_to_convert = [ p for p in paths_to_convert if p.filled ]
   if options.ignore_white:
     paths_to_convert = [ p for p in paths_to_convert \
-                         if p.fillpaint != vecfile.white_paint ]
+                         if p.fillpaint != geom.white_paint ]
   # TODO: look for dup paths (both filled and stroked) and dedup
   # TODO (perhaps): look for a 'background rectangle' and remove
   if options.subdiv_kind == "EVEN":
     _SetEvenLength(options, paths_to_convert)
   if options.combine_paths:
-    combinedpath = vecfile.Path()
+    combinedpath = geom.Path()
     combinedpath.subpaths = _flatten([ p.subpaths for p in paths_to_convert ])
     areas = PathToPolyAreas(combinedpath, options, ans.points)
   else:
@@ -112,7 +112,7 @@ def PathToPolyAreas(path, options, points):
   (TODO: or if it self-crosses)
 
   Args:
-    path: vecfile.Path - the path to convert
+    path: geom.Path - the path to convert
     options: ConvertOptions
     points: geom.Points - use this shared points for all areas
   Returns:
@@ -187,7 +187,7 @@ def _SubpathToPolyArea(subpath, options, points, color = (0.0, 0.0, 0.0)):
   Ensures that face is CCW-oriented.
 
   Args:
-    subpath: vecfile.Subpath - the subpath to convert
+    subpath: geom.Subpath - the subpath to convert
     options: ConvertOptions
     points: geom.Points - used this shared Points for area
     color: (float, float, float) - rgb of filling color
@@ -274,7 +274,7 @@ def _SetEvenLength(options, paths):
 
   Args:
     options: ConvertOptions
-    paths: list of vecfile.Path
+    paths: list of geom.Path
   Side effects:
     Sets options.even_length according to above formula
   """

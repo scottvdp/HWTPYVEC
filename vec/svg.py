@@ -23,6 +23,7 @@ __author__ = "howard.trickey@gmail.com"
 
 import re
 import xml.dom.minidom
+from . import geom
 from . import vecfile
 
 
@@ -32,7 +33,7 @@ def ParseSVGFile(filename):
   Args:
     filename: string - name of file to read and parse
   Returns:
-    vecfile.Art
+    geom.Art
   """
 
   dom = xml.dom.minidom.parse(filename)
@@ -45,11 +46,22 @@ def ParseSVGString(s):
   Args:
     s: string - contains svg
   Returns:
-    vecfile.Art
+    geom.Art
   """
 
   dom = xml.dom.minidom.parseString(s)
   return _SVGDomToArg(dom)
+
+
+class _SState(object):
+  """Holds state that affects the conversion.
+  """
+
+  def __init__(self):
+    self.ctm = geom.TransformMatrix()
+    self.fill = None
+    self.stroke = None
+    self.dpi = 100
 
 
 def _SVGDomToArt(dom):
@@ -58,15 +70,17 @@ def _SVGDomToArt(dom):
   Args:
     dom: xml.dom.minidom.Document
   Returns:
-    vecfile.Art
+    geom.Art
   """
 
-  art = vecfile.Art()
-  gs = vecfile.GState()
+  art = geom.Art()
   svgs = dom.getElementsByTagName('svg')
   if len(svgs) == 0:
     return art
-  svg = svgs[0]
+  gs = _SState()
+  # default coordinate system for svg has y downwards
+  # so start transform matrix to reverse that
+  gs.ctm.d = -1.0
   _ProcessChildren(svgs[0], art, gs)
   return art
 
@@ -76,8 +90,8 @@ def _ProcessChildren(nodes, art, gs):
 
   Args:
     nodes: list of xml.dom.Node
-    art: vecfile.Art
-    gs: vecfile.GState
+    art: geom.Art
+    gs: _SState
   Side effects:
     Maybe adds paths to art.
   """
@@ -91,8 +105,8 @@ def _ProcessNode(node, art, gs):
 
   Args:
     node: xml.dom.Node
-    art: vecfile.Art
-    gs: vecfile.GState
+    art: geom.Art
+    gs: _SState
   Side effects:
     Maybe adds paths to art.
   """
@@ -105,23 +119,173 @@ def _ProcessNode(node, art, gs):
   elif tag == 'defs':
     pass  # TODO
   elif tag == 'path':
-    pass  # TODO
+    _ProcessPath(node, art, gs)
   elif tag == 'polygon':
-    if node.hasAttribute('points'):
-      coords = _ParseCoordPairList(node.getAttribute('points'))
-      n = len(coords)
-      if n > 0:
-        sp = vecfile.Subpath()
-        sp.segments = [ ('L', coords[i], coords[i % n]) for i in range(n) ]
-        sp.closed = True
-        path = vecfile.Path()
-        _SetPathAttributes(path, node, gs)
-        path.subpaths = [ sp ]
-        art.paths.append(path)
+    _ProcessPolygon(node, art, gs)
   elif tag == 'rect':
     pass  # TODO
   elif tag == 'ellipse':
     pass  # TODO
+
+
+def _ProcessPolygon(node, art, gs):
+  """Process a 'polygon' SVG node, updating art.
+
+  Args:
+    node: xml.dom.Node - a 'polygon' node
+    arg: geom.Art
+    gs: _SState
+  Side effects:
+    Adds path for polygon to art
+  """
+
+  if node.hasAttribute('points'):
+    coords = _ParseCoordPairList(node.getAttribute('points'))
+    n = len(coords)
+    if n > 0:
+      c = [ gs.ctm.Apply(coords[i][0], coords[i][1]) for i in range(n) ]
+      sp = geom.Subpath()
+      sp.segments = [ ('L', c[i], c[i % n]) for i in range(n) ]
+      sp.closed = True
+      path = geom.Path()
+      _SetPathAttributes(path, node, gs)
+      path.subpaths = [ sp ]
+      art.paths.append(path)
+
+
+def _ProcessPath(node, art, gs):
+  """Process a 'polygon' SVG node, updating art.
+
+  Args:
+    node: xml.dom.Node - a 'polygon' node
+    arg: geom.Art
+    gs: _SState
+  Side effects:
+    Adds path for polygon to art
+  """
+
+  if not node.hasAttribute('d'):
+    return
+  s = node.getAttribute('d')
+  i = 0
+  n = len(s)
+  path = geom.Path()
+  _SetPathAttributes(path, node, gs)
+  initpt = (0.0, 0.0)
+  subpath = None
+  while i < len(s):
+    (i, subpath, initpt) = _ParseSubpath(s, i, initpt, gs)
+    if subpath:
+      if not subpath.Empty():
+        path.AddSubpath(subpath)
+    else:
+      break
+  if path.subpaths:
+    art.paths.append(path)
+
+
+def _ParseSubpath(s, i, initpt, gs):
+  """Parse a moveto-drawto-command-group starting at s[i] and return Subpath.
+
+  Args:
+    s: string - should be the 'd' attribute of a 'path' element
+    i: int - index in s to start parsing
+    initpt: (float, float) - coordinates of initial point
+    gs: _SState - used to transform coordinates
+  Returns:
+    (int, geom.Subpath, (float, float)) - (index after subpath and subsequent whitespace,
+        the Subpath itself or Non if there was an error, final point)
+  """
+
+  subpath = geom.Subpath()
+  i = _SkipWS(s, i)
+  n = len(s)
+  if i >= n:
+    return (i, None, initpt)
+  if s[i] == 'M':
+    move_cmd = 'M'
+  elif s[i] == 'm':
+    move_cmd = 'm'
+  else:
+    return (i, None, initpt)
+  (i, cur) = _ParseCoordPair(s, _SkipWS(s, i))
+  if not cur:
+    return (i, None, initpt)
+  prev_cmd = 'L'  # implicit cmd if coords follow directly
+  if move_cmd == 'm':
+    cur = geom.VecAdd(initpt, cur)
+    prev_cmd = 'l'
+  while True:
+    implicit_cmd = False
+    if i < n:
+      cmd = s[i]
+      if _PeekCoord(s, i):
+        cmd = prev_cmd
+        implicit_cmd = True
+    else:
+      cmd = None
+    if cmd == 'z' or cmd == 'Z' or cmd == None:
+      if cmd:
+        i = _SkipWS(s, i+1)
+        subpath.closed = True
+      return (i, subpath, cur)
+    elif cmd == 'l' or cmd == 'L':
+      if not implicit_cmd:
+        i = _SkipWS(s, i+1)
+      (i, p1) = _ParseCoordPair(s, i+1)
+      if not p1:
+          return  (i, None, cur)
+      if cmd == 'l':
+        p1 = geom.VecAdd(cur, p1)
+      subpath.append(_LineSeg(cur, p1, gs))
+      cur = p1
+    elif cmd == 'c' or cmd == 'C':
+      if not implicit_cmd:
+        i = _SkipWS(s, i+1)
+      (i, p1, p2, p3) = _ParseThreeCoordPairs(s, i)
+      if not p1:
+        return (i, None, cur)
+      if cmd == 'c':
+        p1 = geom.VecAdd(cur, p1)
+        p2 = geom.VecAdd(cur, p2)
+        p3 = geom.VecAdd(cur, p3)
+      subpath.append(_Bezier3Seg(cur, p3, p1, p2))
+    else:
+      break
+    i = _SkipCommaSpace(s, i)
+    prev_cmd = cmd
+  return (i, None, cur)
+
+
+def _LineSeg(p1, p2, gs):
+  """Return an 'L' segment, transforming coordinates.
+
+  Args:
+    p1: (float, float) - start point
+    p2: (float, float) - end point
+    gs: _SState - used to transform coordinates
+  Returns:
+    tuple - an 'L' type geom.Subpath segment
+  """
+
+  return ('L', gs.ctm.Apply(p1), gs.ctm.Apply(p2))
+
+
+def _Bezier3Seg(p1, p2, c1, c2, gs):
+  """Return a 'B' segment, transforming coordinates.
+
+  Args:
+    p1: (float, float) - start point
+    p2: (float, float) - end point
+    c1: (float, float) - first control point
+    c2: (float, float) - second control point
+    gs: _SState - used to transform coordinates
+  Returns:
+    tuple - an 'L' type geom.Subpath segment
+  """
+
+  return ('B', gs.ctm.Apply(p1), gs.ctm.Apply(p2),
+      gs.ctm.Apply(c1), gs.ctm.Apply(c2))
 
 
 def _SetPathAttributes(path, node, gs):
@@ -131,9 +295,9 @@ def _SetPathAttributes(path, node, gs):
   current graphics state, gs.
 
   Arguments:
-    path: vecfile.Path
+    path: geom.Path
     node: xml.dom.Node
-    gs: vecfile.GState
+    gs: _SState
   Side effects:
     May set filled, fillevenodd, stroked, fillpaint, strokepaint in path.
   """
@@ -142,18 +306,26 @@ def _SetPathAttributes(path, node, gs):
     path.fillpaint = _ParsePaint(node.getAttribute('fill'))
     if path.fillpaint:
       path.filled = True
+  elif gs.fill:
+    path.filled = True
+    path.fillpaint = gs.fill
   if node.hasAttribute('stroke'):
     path.strokepaint = _ParsePaint(node.getAttribute('stroke'))
     if path.strokepaint:
       path.stroked = True
+  elif gs.stroke:
+    path.stroked = True
+    path.strokepaint = gs.stroke
   if node.hasAttribute('fill-rule'):
     path.fillevenodd = node.getAttribute('fill-rule') == 'evenodd'
+
 
 # Some useful regular expressions
 _re_float = re.compile(r"((\+|-)?([0-9]+\.[0-9]*)|(\.[0-9]+)|([0-9]+))")
 _re_int = re.compile(r"(\+|-)?[0-9]+")
 _re_wsopt = re.compile(r"\s*")
-_re_wscomma = re.compile(r"(\s*,\s*)|(\s+)")
+_re_wscommaopt = re.compile(r"(\s*,\s*)|(\s*)")
+
 
 def _ParsePaint(s):
   """Parse an SVG paint definition and return our version of Paint.
@@ -163,7 +335,7 @@ def _ParsePaint(s):
   Args:
     s: string - should contain an SVG paint spec
   Returns:
-    vecfile.Paint or None
+    geom.Paint or None
   """
 
   if len(s) == 0 or s == 'none':
@@ -171,39 +343,101 @@ def _ParsePaint(s):
   if s[0] == '#':
     if len(s) == 7:
       # 6 hex digits
-      return vecfile.Paint( \
+      return geom.Paint( \
         int(s[1:3], 16) / 255.0,
         int(s[3:5], 16) / 255.0,
         int(s[5:7], 16) / 255.0)
     elif len(s) == 4:
       # 3 hex digits
-      return vecfile.Paint( \
+      return geom.Paint( \
         int(s[1], 16)*17 / 255.0,
 	int(s[2], 16)*17 / 255.0,
 	int(s[3], 16)*17 / 255.0)
   else:
-    if s in _ColorDict:
-      return _ColorDict[s]
+    if s in geom.ColorDict:
+      return geom.ColorDict[s]
   return None
 
-_ColorDict = {
-  'aqua' : vecfile.Paint(0.0, 1.0, 1.0),
-  'black' : vecfile.Paint(0.0, 0.0, 0.0),
-  'blue' : vecfile.Paint(0.0, 0.0, 1.0),
-  'fuchsia' : vecfile.Paint(1.0, 0.0, 1.0),
-  'gray' : vecfile.Paint(0.5, 0.5, 0.5),
-  'green' : vecfile.Paint(0.0, 0.5, 0.0),
-  'lime' : vecfile.Paint(0.0, 1.0, 0.0),
-  'maroon' : vecfile.Paint(0.5, 0.0, 0.0),
-  'navy' : vecfile.Paint(0.0, 0.0, 0.5),
-  'olive' : vecfile.Paint(0.5, 0.5, 0.0),
-  'purple' : vecfile.Paint(0.5, 0.0, 0.5),
-  'red' : vecfile.Paint(1.0, 0.0, 0.0),
-  'silver' : vecfile.Paint(0.75, 0.75, 0.75),
-  'teal' : vecfile.Paint(0.0, 0.5, 0.5),
-  'white' : vecfile.Paint(1.0, 1.0,1.0),
-  'yellow' : vecfile.Paint(1.0, 1.0, 0.0)
-}
+
+def _ParseCoord(s, i):
+  """Parse a coordinate (floating point number).
+
+  Args:
+    s: string
+    i: int - where to start parsing
+  Returns:
+    (int, float or None) - int is index after the coordinate
+      and subsequent white space
+  """
+
+  m = _re_float.match(s, i)
+  if m:
+    return (_SkipWS(s, m.end()), float(m.group()))
+  else:
+    return (i, None)
+
+
+def _ParseCoordPair(s, i):
+  """Parse pair of coordinates, with optional comma between.
+
+  Args:
+    s: string
+    i: int - where to start parsing
+  Returns:
+    (int, (float, float) or None) - int is index after the coordinate
+      and subsequent white space
+  """
+
+  (j, x) = _ParseCoord(s, i)
+  if x:
+    j = _SkipCommaSpace(s, j)
+    (j, y) = _ParseCoordPair(s, j)
+    if y:
+      return (_SkipWS(s, j), (x, y))
+  return (i, None)
+
+
+def _ParseTwoCoordPairs(s, i):
+  """Parse two coordinate pairs, optionally separated by commas.
+
+  Args:
+    s: string
+    i: int - where to start parsing
+  Returns:
+    (int, (float, float) or None, (float, float) or None) - int is index after the coordinate
+      and subsequent white space
+  """
+
+  (j, pair1) = _ParseCoordPair(s, i)
+  if pair1:
+    j = _SkipCommaSpace(s, j)
+    (j, pair2) = _ParseCoordPair(s, j)
+    if pair2:
+      return (j, pair1, pair2)
+  return (i, None, None)
+
+
+def _ParseThreeCoordPairs(s, i):
+  """Parse three coordinate pairs, optionally separated by commas.
+
+  Args:
+    s: string
+    i: int - where to start parsing
+  Returns:
+    (int, (float, float) or None, (float, float) or None, (float, float) or None) -
+      int is index after the coordinateand subsequent white space
+  """
+
+  (j, pair1) = _ParseCoordPair(s, i)
+  if pair1:
+    j = _SkipCommaSpace(s, j)
+    (j, pair2) = _ParseCoordPair(s, j)
+    if pair2:
+      j = _SkipCommaSpace(s, j)
+      (j, pair3) = _ParseCoordPair(s, j)
+      if pair3:
+        return (j, pair1, pair2, pair3)
+  return (i, None, None, None)
 
 
 def _ParseCoordPairList(s):
@@ -219,26 +453,44 @@ def _ParseCoordPairList(s):
   """
 
   ans = []
-  i = 0
-  prev = None
-  m = _re_wsopt.match(s, i)
-  if m:
-    i = m.end()
+  i = _SkipWS(s, 0)
   while i < len(s):
-    m = _re_float.match(s, i)
-    if m:
-      v = float(m.group())
-      if prev:
-        ans.append((prev, v))
-        prev = None
-      else:
-        prev = v
-      i = m.end()
-    else:
+    (i, pair) = _ParseCoordPair(s, i)
+    if not pair:
       break
-    m = _re_wscomma.match(s, i)
-    if not m:
-      break
-    i = m.end()
+    ans.append(pair)
   return ans
 
+
+def _SkipWS(s, i):
+  """Skip optional whitespace at s[i]... and return new i.
+
+  Args:
+    s: string
+    i: int - index into s
+  Returns:
+    int - index of first none-whitespace character from s[i], or len(s)
+  """
+
+  m = _re_wsopt.match(s, i)
+  if m:
+    return m.end()
+  else:
+    return i
+
+
+def _SkipCommaSpace(s, i):
+  """Skip optional space with optional comma in it.
+
+  Args:
+    s: string
+    i: int - index into s
+  Returns:
+    int - index after optional space with optional comma
+  """
+
+  m = _re_wscommaopt.match(s, i)
+  if m:
+    return m.end()
+  else:
+    return i

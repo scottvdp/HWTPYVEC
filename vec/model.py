@@ -120,7 +120,7 @@ def ArtToModel(art, options):
   """Convert an Art object into a Model object.
 
   Args:
-    art: vecfile.Art - the Art object to convert.
+    art: geom.Art - the Art object to convert.
     options: ImportOptions - specifies some choices about import
   Returns:
     (Model, string): if there was a major problem, Model may be None.

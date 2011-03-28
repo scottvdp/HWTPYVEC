@@ -20,7 +20,6 @@ class TestImporSVGFile(unittest.TestCase):
 
   def ParseOneSVG(self, f):
     art = svg.ParseSVGFile("testfiles/" + f)
-    DumpArt(art)
     if SHOW:
       opt = art2polyarea.ConvertOptions()
       pareas = art2polyarea.ArtToPolyAreas(art, opt)
@@ -29,6 +28,9 @@ class TestImporSVGFile(unittest.TestCase):
 
   def testL(self):
     self.ParseOneSVG("L.svg")
+
+  def test3(self):
+    self.ParseOneSVG("3.svg")
 
 
 if __name__ == "__main__":

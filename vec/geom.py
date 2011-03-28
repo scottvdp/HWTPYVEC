@@ -17,7 +17,7 @@
 # ##### END GPL LICENSE BLOCK #####
 
 """Geometry classes and operations.
-representation (Art), and functions for cleaning them up.
+Also, vector file representation (Art).
 """
 
 __author__ = "howard.trickey@gmail.com"
@@ -234,6 +234,220 @@ class PolyAreas(object):
     return (minv, maxv)
 
 
+class Art(object):
+  """Contains a vector art diagram.
+
+  Attributes:
+    paths: list of Path objects
+  """
+
+  def __init__(self):
+    self.paths = []
+
+
+class Paint(object):
+  """A color or pattern to fill or stroke with.
+
+  For now, just do colors, but could later do
+  patterns or images too.
+
+  Attributes:
+    color: (r,g,b) triple of floats, 0.0=no color, 1.0=max color
+  """
+
+  def __init__(self, r=0.0, g=0.0, b=0.0):
+    self.color = (r, g, b)
+
+  @staticmethod
+  def CMYK(c, m, y, k):
+    """Return Paint specified in CMYK model.
+
+    Uses formula from 6.2.4 of PDF Reference.
+
+    Args:
+      c, m, y, k: float - in range [0, 1]
+    Returns:
+      Paint - with components in rgb form now
+    """
+
+    return Paint(1.0 - min(1.0, c+k),
+        1.0 - min(1.0, m+k), 1.0 - min(1.0, y+k))
+
+black_paint = Paint()
+white_paint = Paint(1.0, 1.0, 1.0)
+
+ColorDict = {
+  'aqua' : Paint(0.0, 1.0, 1.0),
+  'black' : Paint(0.0, 0.0, 0.0),
+  'blue' : Paint(0.0, 0.0, 1.0),
+  'fuchsia' : Paint(1.0, 0.0, 1.0),
+  'gray' : Paint(0.5, 0.5, 0.5),
+  'green' : Paint(0.0, 0.5, 0.0),
+  'lime' : Paint(0.0, 1.0, 0.0),
+  'maroon' : Paint(0.5, 0.0, 0.0),
+  'navy' : Paint(0.0, 0.0, 0.5),
+  'olive' : Paint(0.5, 0.5, 0.0),
+  'purple' : Paint(0.5, 0.0, 0.5),
+  'red' : Paint(1.0, 0.0, 0.0),
+  'silver' : Paint(0.75, 0.75, 0.75),
+  'teal' : Paint(0.0, 0.5, 0.5),
+  'white' : Paint(1.0, 1.0,1.0),
+  'yellow' : Paint(1.0, 1.0, 0.0)
+}
+
+
+class Path(object):
+  """Represents a path in the PDF sense, with painting instructions.
+
+  Attributes:
+    subpaths: list of Subpath objects
+    filled: True if path is to be filled
+    fillevenodd: True if use even-odd rule to fill (else non-zero winding)
+    stroked: True if path is to be stroked
+    fillpaint: Paint to fill with
+    strokepaint: Paint to stroke with
+  """
+
+  def __init__(self):
+     self.subpaths = []
+     self.filled = False
+     self.fillevenodd = False
+     self.stroked = False
+     self.fillpaint = black_paint
+     self.strokepaint = black_paint
+
+  def AddSubpath(self, subpath):
+    """"Add a subpath."""
+
+    self.subpaths.append(subpath)
+
+  def Empty(self):
+    """Returns True if this Path as no subpaths."""
+
+    return not self.subpaths
+
+
+class Subpath(object):
+  """Represents a subpath in PDF sense, either open or closed.
+
+  We'll represent lines, bezier pieces, circular arc pieces
+  as tuples with letters giving segment type in first position
+  and coordinates (2-tuples of floats) in the other positions.
+
+  Segment types:
+   ('L', a, b)       - line from a to b
+   ('B', a, b, c, d) - cubic bezier from a to b, with control points c,d
+   ('Q', a, b, c)    - quadratic bezier from a to b, with 1 control point c
+  Note that s[1] and s[2] are the start and end points for any segment s.
+
+  Attributes:
+    segments: list of segment tuples (see above)
+    closed: True if closed
+  """
+
+  def __init__(self):
+    self.segments = []
+    self.closed = False
+
+  def Empty(self):
+    """Returns True if this subpath as no segments."""
+
+    return not self.segments
+ 
+  def AddSegment(self, seg):
+    """Add a segment."""
+
+    self.segments.append(seg)
+
+  @staticmethod
+  def SegStart(s):
+    """Return start point for segment.
+
+    Args:
+      s: a segment tuple
+    Returns:
+      (float, float): the coordinates of the segment's start point
+    """
+
+    return s[1]
+
+  @staticmethod
+  def SegEnd(s):
+    """Return end point for segment.
+
+    Args:
+      s: a segment tuple
+    Returns:
+      (float, float): the coordinates of the segment's end point
+    """
+
+    return s[2]
+
+
+class TransformMatrix(object):
+  """Transformation matrix for 2d coordinates.
+
+  The transform matrix is:
+    [ a b 0 ]
+    [ c d 0 ]
+    [ e f 1 ]
+  and coordinate tranformation is defined by:
+    [x' y' 1] = [x y 1] x TransformMatrix
+
+  Attributes:
+    a, b, c, d, e, f: floats
+  """
+
+  def __init__(self, a=1.0, b=0.0, c=0.0, d=1.0, e=0.0, f=0.0):
+    self.a = a
+    self.b = b
+    self.c = c
+    self.d =d
+    self.e = e
+    self.f = f
+
+  def __str__(self):
+    return str([self.a, self.b, self.c, self.d, self.e, self.f])
+
+  def Copy(self):
+    """Return a copy of this matrix."""
+
+    return TransformMatrix(self.a, self.b, self.c, self.d, self.e, self.f)
+
+  def ComposeTransform(self, a, b, c, d, e, f):
+    """Apply the transform given the the arguments on top of this one.
+
+    This is accomplished by returning t x sel
+    where t is the transform matrix that would be formed from the args.
+
+    Arguments:
+      a, b, c, d, e, f: float - defines a composing TransformMatrix
+    """
+
+    newa = a * self.a + b*self.c
+    newb = a*self.b + b*self.d
+    newc = c*self.a + d*self.c
+    newd = c*self.b + d*self.d
+    newe = e*self.a + f*self.c + self.e
+    newf = e*self.b + f*self.d + self.f
+    self.a = newa
+    self.b = newb
+    self.c = newc
+    self.d = newd
+    self.e = newe
+    self.f = newf
+
+  def Apply(self, x, y):
+    """Return the result of applying this tranform to (x,y).
+
+    Arguments:
+      x, y: floats
+    Returns:
+      (x', y'): 2-tuple of floats, the result of [x y 1] x self
+    """
+
+    return (self.a*x + self.c*y + self.e, self.b*x + self.d*y + self.f)
+
 
 def ApproxEqualPoints(p, q):
   """Return True if p and q are approximately the same points.
@@ -312,6 +526,21 @@ def SignedArea(polygon, points):
     v = points.pos[polygon[(i+1) % n]]
     a += u[0]*v[1] - u[1]*v[0]
   return 0.5*a
+
+
+def VecAdd(a, b):
+  """Return vector a-b.
+
+  Args:
+    a: n-tuple of floats
+    b: n-tuple of floats
+  Returns:
+    n-tuple of floats - pairwise addition a+b
+  """
+
+  n = len(a)
+  assert(n == len(b))
+  return tuple([ a[i]+b[i] for i in range(n)])
 
 
 def VecSub(a, b):

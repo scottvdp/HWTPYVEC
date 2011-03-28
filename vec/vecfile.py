@@ -28,6 +28,7 @@ __author__ = "howard.trickey@gmail.com"
 
 import re
 from . import pdf
+from . import geom
 
 WARN = True   # print Warnings about strange things?
 
@@ -37,136 +38,6 @@ TNAME = 0
 TLITNAME = 1
 TSTRING = 2
 TNUM = 3
-
-
-class Art(object):
-  """Contains a vector art diagram.
-
-  Attributes:
-    paths: list of Path objects
-  """
-
-  def __init__(self):
-    self.paths = []
-
-
-class Paint(object):
-  """A color or pattern to fill or stroke with.
-
-  For now, just do colors, but could later do
-  patterns or images too.
-
-  Attributes:
-    color: (r,g,b) triple of floats, 0.0=no color, 1.0=max color
-  """
-
-  def __init__(self, r=0.0, g=0.0, b=0.0):
-    self.color = (r, g, b)
-
-  @staticmethod
-  def CMYK(c, m, y, k):
-    """Return Paint specified in CMYK model.
-
-    Uses formula from 6.2.4 of PDF Reference.
-
-    Args:
-      c, m, y, k: float - in range [0, 1]
-    Returns:
-      Paint - with components in rgb form now
-    """
-
-    return Paint(1.0 - min(1.0, c+k),
-        1.0 - min(1.0, m+k), 1.0 - min(1.0, y+k))
-
-black_paint = Paint()
-white_paint = Paint(1.0, 1.0, 1.0)
-
-class Path(object):
-  """Represents a path in the PDF sense, with painting instructions.
-
-  Attributes:
-    subpaths: list of Subpath objects
-    filled: True if path is to be filled
-    fillevenodd: True if use even-odd rule to fill (else non-zero winding)
-    stroked: True if path is to be stroked
-    fillpaint: Paint to fill with
-    strokepaint: Paint to stroke with
-  """
-
-  def __init__(self):
-     self.subpaths = []
-     self.filled = False
-     self.fillevenodd = False
-     self.stroked = False
-     self.fillpaint = black_paint
-     self.strokepaint = black_paint
-
-  def AddSubpath(self, subpath):
-    """"Add a subpath."""
-
-    self.subpaths.append(subpath)
-
-  def Empty(self):
-    """Returns True if this Path as no subpaths."""
-
-    return not self.subpaths
-
-
-class Subpath(object):
-  """Represents a subpath in PDF sense, either open or closed.
-
-  We'll represent lines, bezier pieces, circular arc pieces
-  as tuples with letters giving segment type in first position
-  and coordinates (2-tuples of floats) in the other positions.
-
-  Segment types:
-   ('L', a, b)       - line from a to b
-   ('B', a, b, c, d) - cubic bezier from a to b, with control points c,d
-   ('Q', a, b, c)    - quadratic bezier from a to b, with 1 control point c
-  Note that s[1] and s[2] are the start and end points for any segment s.
-
-  Attributes:
-    segments: list of segment tuples (see above)
-    closed: True if closed
-  """
-
-  def __init__(self):
-    self.segments = []
-    self.closed = False
-
-  def Empty(self):
-    """Returns True if this subpath as no segments."""
-
-    return not self.segments
- 
-  def AddSegment(self, seg):
-    """Add a segment."""
-
-    self.segments.append(seg)
-
-  @staticmethod
-  def SegStart(s):
-    """Return start point for segment.
-
-    Args:
-      s: a segment tuple
-    Returns:
-      (float, float): the coordinates of the segment's start point
-    """
-
-    return s[1]
-
-  @staticmethod
-  def SegEnd(s):
-    """Return end point for segment.
-
-    Args:
-      s: a segment tuple
-    Returns:
-      (float, float): the coordinates of the segment's end point
-    """
-
-    return s[2]
 
 
 def ClassifyFile(filename):
@@ -240,7 +111,7 @@ def ParseVecFile(filename):
   Args:
     filename: string - name of the file to read and parse
   Returns:
-    Art: object containing paths drawn in the file.
+    geom.Art: object containing paths drawn in the file.
          Return None if there was a major problem reading the file.
   """
 
@@ -267,7 +138,7 @@ def ParseAIEPSFile(filename):
   Args:
     filename: string - name of the file to read and parse
   Returns:
-    Art - object containing paths and faces drawn in the file
+    geom.Art - object containing paths and faces drawn in the file
   """
 
   toks = TokenizeAIEPSFile(filename)
@@ -383,84 +254,19 @@ def TokenizeAIEPS(s):
   return ans
 
 
-class TransformMatrix(object):
-  """Transformation matrix for 2d coordinates.
-
-  The transform matrix is:
-    [ a b 0 ]
-    [ c d 0 ]
-    [ e f 1 ]
-  and coordinate tranformation is defined by:
-    [x' y' 1] = [x y 1] x TransformMatrix
-
-  Attributes:
-    a, b, c, d, e, f: floats
-  """
-
-  def __init__(self, a=1.0, b=0.0, c=0.0, d=1.0, e=0.0, f=0.0):
-    self.a = a
-    self.b = b
-    self.c = c
-    self.d =d
-    self.e = e
-    self.f = f
-
-  def __str__(self):
-    return str([self.a, self.b, self.c, self.d, self.e, self.f])
-
-  def Copy(self):
-    """Return a copy of this matrix."""
-
-    return TransformMatrix(self.a, self.b, self.c, self.d, self.e, self.f)
-
-  def ComposeTransform(self, a, b, c, d, e, f):
-    """Apply the transform given the the arguments on top of this one.
-
-    This is accomplished by returning t x sel
-    where t is the transform matrix that would be formed from the args.
-
-    Arguments:
-      a, b, c, d, e, f: float - defines a composing TransformMatrix
-    """
-
-    newa = a * self.a + b*self.c
-    newb = a*self.b + b*self.d
-    newc = c*self.a + d*self.c
-    newd = c*self.b + d*self.d
-    newe = e*self.a + f*self.c + self.e
-    newf = e*self.b + f*self.d + self.f
-    self.a = newa
-    self.b = newb
-    self.c = newc
-    self.d = newd
-    self.e = newe
-    self.f = newf
-
-  def Apply(self, x, y):
-    """Return the result of applying this tranform to (x,y).
-
-    Arguments:
-      x, y: floats
-    Returns:
-      (x', y'): 2-tuple of floats, the result of [x y 1] x self
-    """
-
-    return (self.a*x + self.c*y + self.e, self.b*x + self.d*y + self.f)
-
-
 class GState(object):
   """Object to hold graphic state.
 
   Attributes:
-    ctm: TransformMatrix - current transform matrix
-    fillpaint: Paint
-    strokepaint: Paint
+    ctm: geom.TransformMatrix - current transform matrix
+    fillpaint: geom.Paint
+    strokepaint: geom.Paint
   """
 
   def __init__(self):
-    self.ctm = TransformMatrix()
-    self.fillpaint = black_paint
-    self.strokepaint = black_paint
+    self.ctm = geom.TransformMatrix()
+    self.fillpaint = geom.black_paint
+    self.strokepaint = geom.black_paint
 
   def Copy(self):
     """Return a copy of this graphics state."""
@@ -476,9 +282,9 @@ class _PathState(object):
   """Object to hold state while parsing Adobe paths.
 
   Attributes:
-    art: Art, used  to accumulate answer
-    curpath: Path
-    cursubpath: Subpath - not yet added into curpath
+    art: geom.Art, used  to accumulate answer
+    curpath: geom.Path
+    cursubpath: geom.Subpath - not yet added into curpath
     curpoint: coordinates of current point, None if none
     incompound: true if parsing an ai/eps compound path
     gstate: GState - the current graphics state
@@ -489,7 +295,7 @@ class _PathState(object):
   def __init__(self):
     """Construct the _PathState object."""
 
-    self.art = Art()
+    self.art = geom.Art()
     self.ResetPath()
     self.incompound = False
     self.gstate = GState()
@@ -505,18 +311,18 @@ class _PathState(object):
     """
 
     if not self.cursubpath.Empty():
-      startp = Subpath.SegStart(self.cursubpath.segments[0])
+      startp = geom.Subpath.SegStart(self.cursubpath.segments[0])
       if startp != self.curpoint:
         self.cursubpath.AddSegment(("L", self.curpoint, startp))
         self.curpoint = startp
       self.curpath.AddSubpath(self.cursubpath)
-      self.cursubpath = Subpath()
+      self.cursubpath = geom.Subpath()
 
   def ResetPath(self):
     """Reset the current path state to empty, discarding any current path."""
 
-    self.curpath = Path()
-    self.cursubpath = Subpath()
+    self.curpath = geom.Path()
+    self.cursubpath = geom.Subpath()
     self.curpoint = None
     self.incompound = False
 
@@ -549,7 +355,7 @@ class _PathState(object):
 
     if not self.cursubpath.Empty():
       self.curpath.AddSubpath(self.cursubpath)
-      self.cursubpath = Subpath()
+      self.cursubpath = geom.Subpath()
     p = self.curpath
     if not p.Empty():
       p.filled = dofill
@@ -586,7 +392,7 @@ class _PathState(object):
     p = (xp, yp)
     if not self.cursubpath.Empty():
       self.curpath.AddSubpath(self.cursubpath)
-    self.cursubpath = Subpath()
+    self.cursubpath = geom.Subpath()
     self.curpoint = p
 
   def LineTo(self, x, y, relative = False):
@@ -683,7 +489,7 @@ def ParsePS(toks, major = "pdf", minor = ""):
     minor: string - minor version (version number for ps, eps, pdf,
                     and "eps" or "pdf" for "ai")
   Returns:
-    Art: object with the paths painted by the token stream
+    geom.Art: object with the paths painted by the token stream
   """
 
   pstate = _PathState()
@@ -757,9 +563,9 @@ def ParsePS(toks, major = "pdf", minor = ""):
         if len(args) == 1:
           if op == "g":
             # gray level for non-stroking operations
-            pstate.gstate.fillpaint = Paint(args[0], args[0], args[0])
+            pstate.gstate.fillpaint = geom.Paint(args[0], args[0], args[0])
           elif op == "G":
-            pstate.gstate.strokepaint = Paint(args[0], args[0], args[0])
+            pstate.gstate.strokepaint = geom.Paint(args[0], args[0], args[0])
         if len(args) == 2:
           if op == "m" or op == "moveto":
             pstate.MoveTo(args[0], args[1], False)
@@ -778,9 +584,9 @@ def ParsePS(toks, major = "pdf", minor = ""):
         if len(args) == 3:
           if op == "rg":
             # rgb for non-stroking operations
-            pstate.gstate.fillpaint = Paint(args[0], args[1], args[2])
+            pstate.gstate.fillpaint = geom.Paint(args[0], args[1], args[2])
           elif op == "RG":
-            pstate.gstate.strokepaint = Paint(args[0], args[1], args[2])
+            pstate.gstate.strokepaint = geom.Paint(args[0], args[1], args[2])
         elif len(args) == 4:
           if op == "v" or op == "V":
             # cubic bezier but use start as first cp
@@ -808,10 +614,10 @@ def ParsePS(toks, major = "pdf", minor = ""):
               pstate.DrawPath(False, True)
           elif op == "k":
             # cmyk for non-stroking operations
-            pstate.gstate.fillpaint = Paint.CMYK(args[0],
+            pstate.gstate.fillpaint = geom.Paint.CMYK(args[0],
                 args[1], args[2], args[3])
           elif op == "K":
-            pstate.gstate.strokepaint = Paint.CMYK(args[0],
+            pstate.gstate.strokepaint = geom.Paint.CMYK(args[0],
                 args[1], args[2], args[3])
         elif len(args) == 6:
           if op == "c" or op == "C" or op == "curveto":

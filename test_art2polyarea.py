@@ -25,7 +25,7 @@ class TestClassifyPathPairs(unittest.TestCase):
 class TestBezier3Approx(unittest.TestCase):
 
   def runTest(self):
-    art = vecfile.Art()
+    art = geom.Art()
     cps = [(0.0, 0.0), (1.0, 1.0), (2.0, 3.0), (3.0, 0.0)]
     opt = art2polyarea.ConvertOptions()
     opt.smoothness = 0
@@ -75,7 +75,7 @@ class TestCombineSimplePolyAreas(unittest.TestCase):
 
 # make a closed polygon Subpath from a list of coordinates
 def _MakePolySubpath(p):
-  subpath = vecfile.Subpath()
+  subpath = geom.Subpath()
   for i in range(len(p)-1):
     subpath.AddSegment(('L', p[i], p[i+1]))
   subpath.closed = True
@@ -85,7 +85,7 @@ def _MakePolySubpath(p):
 class TestSubpathToPolyArea(unittest.TestCase):
 
   def runTest(self):
-    subpath = vecfile.Subpath()
+    subpath = geom.Subpath()
     subpath.AddSegment(('L', (0.0, 0.0), (3.0, 0.0)))
     subpath.AddSegment(('L', (3.0, 0.0), (3.0, 5.0)))
     subpath.AddSegment(('B', (3.0, 5.0), (0.0, 5.0), (2.0, 6.0), (1.0, 6.0)))
@@ -95,7 +95,7 @@ class TestSubpathToPolyArea(unittest.TestCase):
     self.assertEqual(pa.points.pos, [(0.0, 0.0), (3.0, 0.0), (3.0, 5.0),
         (1.5, 5.75), (0.0, 5.0)])
     self.assertEqual(pa.poly, [0, 1, 2, 3, 4])
-    subpath = vecfile.Subpath()
+    subpath = geom.Subpath()
     subpath.AddSegment(('L', (0.0, 0.0), (1.0, 0.0)))
     opt = art2polyarea.ConvertOptions()
     opt.smoothness = 0
@@ -110,7 +110,7 @@ class TestSubpathToPolyArea(unittest.TestCase):
 class TestAdaptiveSubpathToPolyArea(unittest.TestCase):
 
   def runTest(self):
-    subpath = vecfile.Subpath()
+    subpath = geom.Subpath()
     m =  0.551784  # magic number for circle approx by 4 beziers
     subpath.AddSegment(('B', (0.0, 0.0), (1.0, 1.0), (m, 0.0), (1.0, 1.0-m)))
     subpath.AddSegment(('B', (1.0, 1.0), (0.0, 2.0), (1.0, 1.0+m), (m, 2.0)))
@@ -145,13 +145,13 @@ class TestAdaptiveSubpathToPolyArea(unittest.TestCase):
 class TestEvenApprox(unittest.TestCase):
 
   def runTest(self):
-    subpath = vecfile.Subpath()
+    subpath = geom.Subpath()
     m =  0.551784  # magic number for circle approx by 4 beziers
     subpath.AddSegment(('B', (0.0, 0.0), (1.0, 1.0), (m, 0.0), (1.0, 1.0-m)))
     subpath.AddSegment(('B', (1.0, 1.0), (0.0, 2.0), (1.0, 1.0+m), (m, 2.0)))
     subpath.AddSegment(('L', (0.0, 2.0), (0.0, 0.0)))
     subpath.closed = True
-    path = vecfile.Path()
+    path = geom.Path()
     path.AddSubpath(subpath)
     opt = art2polyarea.ConvertOptions()
     opt.subdiv_kind = "EVEN"
@@ -172,27 +172,27 @@ class TestEvenApprox(unittest.TestCase):
 class TestArtToPolyAreas(unittest.TestCase):
 
   def runTest(self):
-    art = vecfile.Art()
+    art = geom.Art()
     # path1 - filled with white, so won't appear
-    path1 = vecfile.Path()
+    path1 = geom.Path()
     path1.AddSubpath(_MakePolySubpath([(1.0, 1.0), (2.0, 1.0), (3.0, 1.0)]))
     path1.filled = True
-    path1.fillpaint = vecfile.white_paint
+    path1.fillpaint = geom.white_paint
     # path2 - not filled, so won't appear
-    path2 = vecfile.Path()
+    path2 = geom.Path()
     path2.AddSubpath(_MakePolySubpath([(0.0, 1.0), (3.0, 1.0), (3.0, 1.0)]))
     path2.filled = False
     # path3 - square with triangle hole
-    path3 = vecfile.Path()
+    path3 = geom.Path()
     path3.AddSubpath(_MakePolySubpath([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]))
     path3.AddSubpath(_MakePolySubpath([(.2, .2), (.1, .6), (.4, .2)]))
     path3.filled = True
-    path3.fillpaint = vecfile.Paint(1.0, 0.0, 0.0)  # red
+    path3.fillpaint = geom.Paint(1.0, 0.0, 0.0)  # red
     # path 4 - rectangle - covers path3, but shouldn't combine with it
-    path4 = vecfile.Path()
+    path4 = geom.Path()
     path4.AddSubpath(_MakePolySubpath([(-1.0, -1.0), (5.0, -1.0), (5.0, 2.0), (-1.0, 2.0)]))
     path4.filled = True
-    path4.fillpaint = vecfile.Paint(0.0, 1.0, 0.0)  # green
+    path4.fillpaint = geom.Paint(0.0, 1.0, 0.0)  # green
     art.paths = [path1, path2, path3, path4]
     opt = art2polyarea.ConvertOptions()
     opt.smoothness = 0
