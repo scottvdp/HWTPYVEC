@@ -166,7 +166,7 @@ def TokenizeAIEPSFile(filename):
 
 # Regular expressions for PostScript tokens
 _re_psname = re.compile(r"[^ \t\r\n()<>[\]{}/%]+")
-_re_psfloat = re.compile(r"((\+|-)?([0-9]+\.[0-9]*)|(\.[0-9]+))")
+_re_psfloat = re.compile(r"(\+|-)?(([0-9]+\.[0-9]*)|(\.[0-9]+))")
 _re_psint = re.compile(r"(\+|-)?[0-9]+")
 _re_psstring = re.compile(r"\((\\.|.)*?\)")
 _re_pshexstring = re.compile(r"<.*>")
@@ -385,7 +385,7 @@ class _PathState(object):
       relative: bool - if true, then a relative move, else absolute
     """
 
-    (xp,yp) = self.gstate.ctm.Apply(x, y)
+    (xp,yp) = self.gstate.ctm.Apply((x, y))
     if relative and self.curpoint:
       xp += self.curpoint[0]
       yp += self.curpoint[1]
@@ -410,7 +410,7 @@ class _PathState(object):
 
     if self.curpoint == -1:
       return
-    (xp, yp) = self.gstate.ctm.Apply(x, y)
+    (xp, yp) = self.gstate.ctm.Apply((x, y))
     if relative and self.curpoint:
       xp += self.curpoint[0]
       yp += self.curpoint[1]
@@ -443,9 +443,9 @@ class _PathState(object):
     if use_start_as_cp:
       cp1 = self.curpoint
     else:
-      cp1 = self.gstate.ctm.Apply(cp1x+rx, cp1y+ry)
-    cp2 = self.gstate.ctm.Apply(cp2x+rx, cp2y+ry)
-    p = self.gstate.ctm.Apply(x+rx, y+ry)
+      cp1 = self.gstate.ctm.Apply((cp1x+rx, cp1y+ry))
+    cp2 = self.gstate.ctm.Apply((cp2x+rx, cp2y+ry))
+    p = self.gstate.ctm.Apply((x+rx, y+ry))
     self.cursubpath.AddSegment(("B", self.curpoint, p, cp1, cp2))
     self.curpoint = p
 

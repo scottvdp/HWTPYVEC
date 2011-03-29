@@ -218,6 +218,10 @@ def _SubpathToPolyArea(subpath, options, points, color = (0.0, 0.0, 0.0)):
       prev = end
     elif ty == "Q":
       print("unimplemented segment type Q")
+    elif ty == "A":
+      approx = ArcApprox(start, end, seg[3], seg[4], seg[5], seg[6], options)
+      face.extend(approx[1:])
+      prev = end
     else:
       print("unexpected segment type", ty)
   # now make a cleaned face in a new PolyArea
@@ -462,6 +466,133 @@ def _Bez3step(b, r, alpha):
     ans.append(tuple(t))
   return ans
 
+
+def ArcApprox(start, end, rad, xrot, large_arc, ccw, options):
+  """Approximate an elliptical arc with line segments, according to options.
+
+  Implementation follows notes in F.6 of SVG spec.
+
+  Args:
+    start: (float, float) - starting point
+    end: (float, float) - ending point
+    rad: (float, float) - x-radius, y-radius
+    xrot: float - angle of rotation from x-axis, in degrees
+    large_arc: bool - should we take a larger arc?
+    ccw: bool - does arc proceed counter-clockwise?
+    options: ConvertOptions
+  Returns:
+    list of tuples (coordinates) for straight line approximation of arc
+  """
+
+  if start == end:
+    return [ start ]
+  (rx, ry) = rad
+  if rx == 0.0 or ry == 0.0:
+    # treat same as line
+    if options.subdiv_kind == "EVEN":
+      return _EvenLineDivide(start, end, options)
+    else:
+      return [start, end]
+  rx = abs(rx)
+  ry = abs(ry)
+  (x1, y1) = start
+  (x2, y2) = end
+
+  # Convert to center parameterization.
+  # Primed coords: origin at midpoint of (start, end)
+  # followed by rotaiton to line up coord axes with ellipse axes
+  x1p = (x1 - x2) / 2.0
+  y1p = (y1 - y2) / 2.0
+  phi = xrot * math.pi / 180.0
+  cos_phi = math.cos(phi)
+  sin_phi = math.sin(phi)
+  (x1p, y1p) = (cos_phi * x1p + sin_phi * y1p, -sin_phi * x1p + cos_phi * y1p)
+  # perhaps scale up rx, ry to make ellipse achievable
+  lam = (x1p**2) / rx**2 + (y1p**2) / ry**2
+  if lam > 1.0:
+    slam = math.sqrt(lam)
+    rx *= slam
+    ry *= slam
+  cf2 = (rx**2 * ry**2 - rx**2 * y1p**2 - ry**2 * x1p**2) / \
+      (rx**2 * y1p**2 + ry**2 * x1p**2)
+  if cf2 <= 0.0:
+    cfactor = 0.0
+  else:
+    cfactor = math.sqrt(cf2)
+  if large_arc == ccw:
+    cfactor = -cfactor
+  cxp = cfactor * rx * y1p / ry
+  cyp = -cfactor * ry * x1p / rx
+  cx = cos_phi * cxp - sin_phi * cyp + (x1 + x2) / 2.0
+  cy = sin_phi * cxp + cos_phi * cyp + (y1 + y2) / 2.0
+  theta1 = _Angle((1.0,0.0), ((x1p - cxp) / rx, (y1p - cyp) / ry))
+  delta_theta = _Angle(((x1p - cxp) / rx, (y1p - cyp) / ry),
+      ((-x1p - cxp) / rx, (-y1p - cyp) / ry))
+  if not ccw and delta_theta > 0.0:
+    delta_theta -= 2 * math.pi
+  elif ccw and delta_theta < 0.0:
+    delta_theta += 2 * math.pi
+  if abs(delta_theta) < 1e-5:
+    # shouldn't happen
+    return [ start, end ]
+
+  # Now arc is: (x, y) = M * col(rx * cos theta, ry * sin theta) + col(cx, cy)
+  # where theta goes from theta1 to theta1 + delta_theta
+  # and M is rotation matrix for phi
+  # Let's ignore the fact that the axes may have different lengths
+  # and just divide delta_theta into the right number of segments
+  # to satisfy the smoothness options.
+  if options.subdiv_kind == "EVEN":
+    # arc_length = pi*d * fraction of circle represented by delta_theta
+    arc_length = delta_theta * (rx + ry) / 2.0
+    numsegs = math.ceil(arc_length / options.even_length)
+  else:
+    # for smoothness 0, have 1 segment per quarter circle
+    # and double for each smoothness increment after that
+    numsegs = (2 ** options.smoothness) * math.ceil(abs(delta_theta) / (math.pi * 2.0))
+  theta_incr = delta_theta / numsegs
+  ans = start
+  theta = theta1
+  endtheta = theta1 + delta_theta
+  ans = [ start ]
+  # end condition should be theta ~== endtheta but also
+  # should be no more than numsegs iters
+  for i in range(numsegs):
+    theta = theta + theta_incr
+    if abs(theta - endtheta) < 1e-5:
+      break
+    cos_theta = math.cos(theta)
+    sin_theta = math.sin(theta)
+    x = cos_phi * rx * cos_theta - sin_phi * ry * sin_theta + cx
+    y = sin_phi * rx * cos_theta + cos_phi * ry * sin_theta + cy
+    ans.append((x, y))
+  ans.append(end)
+  return ans
+
+
+def _Angle(u, v):
+  """Return angle between two vectors.
+
+  Args:
+    u: (float, float)
+    v: (float, float)
+  Returns:
+    float - angle in radians between u and v, where
+      it is +/- depending on sign of ux * vy - uy * vx
+  """
+
+  (ux, uy) = u
+  (vx, vy) = v
+  costheta = (ux*vx + uy*vy) / (math.sqrt(ux**2 + uy**2) * math.sqrt(vx**2 + vy**2))
+  if costheta > 1.0:
+    costheta = 1.0
+  if costheta < -1.0:
+    costheta = -1.0
+  theta = math.acos(costheta)
+  if ux*vy - uy*vx < 0.0:
+    theta = -theta
+  return theta
+    
 
 def _ClassifyPathPairs(a, b):
   """Classify vertices of path b with respect to path a.

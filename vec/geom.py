@@ -338,6 +338,12 @@ class Subpath(object):
    ('L', a, b)       - line from a to b
    ('B', a, b, c, d) - cubic bezier from a to b, with control points c,d
    ('Q', a, b, c)    - quadratic bezier from a to b, with 1 control point c
+   ('A', a, b, rad, xrot, large-arc, ccw) - elliptical arc from a to b,
+     with rad=(rx, ry) as radii, xrot is x-axis rotation in degrees,
+     large-arc is True if arc should be >= 180 degrees,
+     ccw is True if start->end follows counter-clockwise direction
+     (see SVG spec); note that after rad,
+     the rest are floats or bools, not coordinate pairs
   Note that s[1] and s[2] are the start and end points for any segment s.
 
   Attributes:
@@ -437,15 +443,16 @@ class TransformMatrix(object):
     self.e = newe
     self.f = newf
 
-  def Apply(self, x, y):
-    """Return the result of applying this tranform to (x,y).
+  def Apply(self, pt):
+    """Return the result of applying this tranform to pt = (x,y).
 
     Arguments:
-      x, y: floats
+      (x, y) : (float, float)
     Returns:
       (x', y'): 2-tuple of floats, the result of [x y 1] x self
     """
 
+    (x, y) = pt
     return (self.a*x + self.c*y + self.e, self.b*x + self.d*y + self.f)
 
 

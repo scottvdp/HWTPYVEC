@@ -143,7 +143,7 @@ def _ProcessPolygon(node, art, gs):
     coords = _ParseCoordPairList(node.getAttribute('points'))
     n = len(coords)
     if n > 0:
-      c = [ gs.ctm.Apply(coords[i][0], coords[i][1]) for i in range(n) ]
+      c = [ gs.ctm.Apply(coords[i]) for i in range(n) ]
       sp = geom.Subpath()
       sp.segments = [ ('L', c[i], c[i % n]) for i in range(n) ]
       sp.closed = True
@@ -208,7 +208,7 @@ def _ParseSubpath(s, i, initpt, gs):
     move_cmd = 'm'
   else:
     return (i, None, initpt)
-  (i, cur) = _ParseCoordPair(s, _SkipWS(s, i))
+  (i, cur) = _ParseCoordPair(s, _SkipWS(s, i+1))
   if not cur:
     return (i, None, initpt)
   prev_cmd = 'L'  # implicit cmd if coords follow directly
@@ -232,12 +232,12 @@ def _ParseSubpath(s, i, initpt, gs):
     elif cmd == 'l' or cmd == 'L':
       if not implicit_cmd:
         i = _SkipWS(s, i+1)
-      (i, p1) = _ParseCoordPair(s, i+1)
+      (i, p1) = _ParseCoordPair(s, i)
       if not p1:
           return  (i, None, cur)
       if cmd == 'l':
         p1 = geom.VecAdd(cur, p1)
-      subpath.append(_LineSeg(cur, p1, gs))
+      subpath.AddSegment(_LineSeg(cur, p1, gs))
       cur = p1
     elif cmd == 'c' or cmd == 'C':
       if not implicit_cmd:
@@ -249,7 +249,18 @@ def _ParseSubpath(s, i, initpt, gs):
         p1 = geom.VecAdd(cur, p1)
         p2 = geom.VecAdd(cur, p2)
         p3 = geom.VecAdd(cur, p3)
-      subpath.append(_Bezier3Seg(cur, p3, p1, p2))
+      subpath.AddSegment(_Bezier3Seg(cur, p3, p1, p2, gs))
+      cur = p3
+    elif cmd == 'a' or cmd == 'A':
+      if not implicit_cmd:
+        i = _SkipWS(s, i+1)
+      (i, p1, rad, rot, la, ccw) = _ParseArc(s, i)
+      if not p1:
+        return (i, None, cur)
+      if cmd == 'a':
+        p1 = geom.VecAdd(cur, p1)
+      subpath.AddSegment(_ArcSeg(cur, p1, rad, rot, la, ccw, gs))
+      cur = p1
     else:
       break
     i = _SkipCommaSpace(s, i)
@@ -288,6 +299,37 @@ def _Bezier3Seg(p1, p2, c1, c2, gs):
       gs.ctm.Apply(c1), gs.ctm.Apply(c2))
 
 
+def _ArcSeg(p1, p2, rad, rot, la, ccw, gs):
+  """Return an 'A' segment, with attempt to transform.
+
+  Our A segments don't allow modeling the effect of
+  arbitrary transforms, but we can handle translation
+  and scaling.
+
+  Args:
+    p1: (float, float) - start point
+    p2: (float, float) - end point
+    rad: (float, float) - (x radius, y radius)
+    rot: float - x axis rotation, in degrees
+    la: bool - large arc if True
+    ccw: bool - counter-clockwise if True
+    gs: _SState - used to transform
+  Returns:
+    tuple - an 'A' type geom.Subpath segment
+  """
+
+  tp1 = gs.ctm.Apply(p1)
+  tp2 = gs.ctm.Apply(p2)
+  rx = rad[0] * gs.ctm.a
+  ry = rad[1] * gs.ctm.d
+  # if one of axes is mirrored, invert the ccw flag
+  if rx * ry < 0.0:
+    ccw = not ccw
+  trad = (abs(rx), abs(ry))
+  # TODO: abs(gs.ctm.a) != abs(ts.ctm.d), adjust xrot
+  return ('A', tp1, tp2, trad, rot, la, ccw)
+
+
 def _SetPathAttributes(path, node, gs):
   """Set the attributes related to filling/stroking in path.
 
@@ -321,7 +363,7 @@ def _SetPathAttributes(path, node, gs):
 
 
 # Some useful regular expressions
-_re_float = re.compile(r"((\+|-)?([0-9]+\.[0-9]*)|(\.[0-9]+)|([0-9]+))")
+_re_float = re.compile(r"(\+|-)?(([0-9]+\.[0-9]*)|(\.[0-9]+)|([0-9]+))")
 _re_int = re.compile(r"(\+|-)?[0-9]+")
 _re_wsopt = re.compile(r"\s*")
 _re_wscommaopt = re.compile(r"(\s*,\s*)|(\s*)")
@@ -377,6 +419,21 @@ def _ParseCoord(s, i):
     return (i, None)
 
 
+def _PeekCoord(s, i):
+  """Return True if s[i] starts a coordinate.
+
+  Args:
+    s: string
+    i: int - place in s to start looking
+  Returns:
+    bool - True if s[i] starts a coordinate, perhaps after comma / space
+  """
+
+  i = _SkipCommaSpace(s, i)
+  m = _re_float.match(s, i)
+  return True if m else False
+
+
 def _ParseCoordPair(s, i):
   """Parse pair of coordinates, with optional comma between.
 
@@ -389,10 +446,10 @@ def _ParseCoordPair(s, i):
   """
 
   (j, x) = _ParseCoord(s, i)
-  if x:
+  if x is not None:
     j = _SkipCommaSpace(s, j)
-    (j, y) = _ParseCoordPair(s, j)
-    if y:
+    (j, y) = _ParseCoord(s, j)
+    if y is not None:
       return (_SkipWS(s, j), (x, y))
   return (i, None)
 
@@ -460,6 +517,42 @@ def _ParseCoordPairList(s):
       break
     ans.append(pair)
   return ans
+
+
+def _ParseArc(s, i):
+  """Parse an elliptical arc specification.
+
+  Args:
+    s: string
+    i: int - where to start parsing
+  Returns:
+    (int, (float, float) or None, (float, float), float, bool, bool) -
+      int is index after spec and subsequent white space,
+      first (float, float) is end point of arc
+      second (float, float) is (x-radius, y-radius)
+      float is x-axis rotation, in degrees
+      first bool is True if larger arc is to be used
+      second bool is True if arc follows ccw direction
+  """
+
+  (j, rad) = _ParseCoordPair(s, i)
+  if rad:
+    j = _SkipCommaSpace(s, j)
+    (j, rot) = _ParseCoord(s, j)
+    if rot is not None:
+      j = _SkipCommaSpace(s, j)
+      (j, f) = _ParseCoord(s, j)  # OK, should really just look for 0 or 1
+      if f is not None:
+        laf = (f != 0.0)
+        j = _SkipCommaSpace(s, j)
+        (j, f) = _ParseCoord(s, j)
+        if f is not None:
+          ccw = (f != 0.0)
+          j = _SkipCommaSpace(s, j)
+          (j, pt) = _ParseCoordPair(s, j)
+          if pt:
+            return (j, pt, rad, rot, laf, ccw)
+  return (i, None, None, None, None, None)
 
 
 def _SkipWS(s, i):
