@@ -26,6 +26,7 @@ import xml.dom.minidom
 from . import geom
 from . import vecfile
 
+TOL = 1e-5
 
 def ParseSVGFile(filename):
   """Parse an SVG file name and return an Art object for it.
@@ -59,8 +60,9 @@ class _SState(object):
 
   def __init__(self):
     self.ctm = geom.TransformMatrix()
-    self.fill = None
-    self.stroke = None
+    self.fill = "black"
+    self.fillrule = "nonzero"
+    self.stroke = "none"
     self.dpi = 100
 
 
@@ -123,9 +125,11 @@ def _ProcessNode(node, art, gs):
   elif tag == 'polygon':
     _ProcessPolygon(node, art, gs)
   elif tag == 'rect':
-    pass  # TODO
+    _ProcessRect(node, art, gs)
   elif tag == 'ellipse':
-    pass  # TODO
+    _ProcessEllipse(node, art, gs)
+  elif tag == 'circle':
+    _ProcessCircle(node, art, gs)
 
 
 def _ProcessPolygon(node, art, gs):
@@ -229,22 +233,20 @@ def _ParseSubpath(s, i, initpt, gs):
         i = _SkipWS(s, i+1)
         subpath.closed = True
       return (i, subpath, cur)
-    elif cmd == 'l' or cmd == 'L':
-      if not implicit_cmd:
-        i = _SkipWS(s, i+1)
+    if not implicit_cmd:
+      i = _SkipWS(s, i+1)
+    if cmd == 'l' or cmd == 'L':
       (i, p1) = _ParseCoordPair(s, i)
       if not p1:
-          return  (i, None, cur)
+          break
       if cmd == 'l':
         p1 = geom.VecAdd(cur, p1)
       subpath.AddSegment(_LineSeg(cur, p1, gs))
       cur = p1
     elif cmd == 'c' or cmd == 'C':
-      if not implicit_cmd:
-        i = _SkipWS(s, i+1)
       (i, p1, p2, p3) = _ParseThreeCoordPairs(s, i)
       if not p1:
-        return (i, None, cur)
+        break
       if cmd == 'c':
         p1 = geom.VecAdd(cur, p1)
         p2 = geom.VecAdd(cur, p2)
@@ -252,20 +254,197 @@ def _ParseSubpath(s, i, initpt, gs):
       subpath.AddSegment(_Bezier3Seg(cur, p3, p1, p2, gs))
       cur = p3
     elif cmd == 'a' or cmd == 'A':
-      if not implicit_cmd:
-        i = _SkipWS(s, i+1)
       (i, p1, rad, rot, la, ccw) = _ParseArc(s, i)
       if not p1:
-        return (i, None, cur)
+        break
       if cmd == 'a':
         p1 = geom.VecAdd(cur, p1)
       subpath.AddSegment(_ArcSeg(cur, p1, rad, rot, la, ccw, gs))
       cur = p1
+    elif cmd == 'h' or cmd == 'H':
+      (i, x) = _ParseCoord(s, i)
+      if x is None:
+        break
+      if cmd == 'h':
+        x += cur[0]
+      subpath.AddSegment(_LineSeg(cur, (x, cur[1]), gs))
+      cur = (x, cur[1])
+    elif cmd == 'v' or cmd == 'V':
+      (i, y) = _ParseCoord(s, i)
+      if y is None:
+        break
+      if cmd == 'v':
+        y += cur[1]
+      subpath.AddSegment(_LineSeg(cur, (cur[0], y), gs))
+      cur = (cur[0], y)
+    elif cmd == 's' or cmd == 'S':
+      (i, p2, p3) = _ParseTwoCoordPairs(s, i)
+      if not p2:
+        break
+      if cmd == 's':
+        p2 = geom.VecAdd(cur, p2)
+        p3 = geom.VecAdd(cur, p3)
+      # p1 is reflection of cp2 of previous command
+      # through current point (but p1 is cur if no previous)
+      if len(subpath.segments) > 0 and subpath.segments[-1][0] == 'B':
+        p4 = subpath.segments[-1][4]
+      else:
+        p4 = cur
+      p1 = geom.VecAdd(cur, geom.VecSub(cur, p4))
+      subpath.AddSegment(_Bezier3Seg(cur, p3, p1, p2, gs))
+      cur = p3
     else:
+      # TODO: quadratic beziers, 'q', and 't'
       break
     i = _SkipCommaSpace(s, i)
     prev_cmd = cmd
   return (i, None, cur)
+
+
+def _ProcessRect(node, art, gs):
+  """Process a 'rect' SVG node, updating art.
+
+  Args:
+    node: xml.dom.Node - a 'polygon' node
+    arg: geom.Art
+    gs: _SState
+  Side effects:
+    Adds path for rectangle to art
+  """
+
+  if not (node.hasAttribute('width') and node.hasAttribute('height')):
+    return
+  w = _ParseLengthAttrOrDefault(node, 'width', gs, 0.0)
+  h = _ParseLengthAttrOrDefault(node, 'height', gs, 0.0)
+  if w <= 0.0 or h <= 0.0:
+    return
+  x = _ParseCoordAttrOrDefault(node, 'x', 0.0)
+  y = _ParseCoordAttrOrDefault(node, 'y', 0.0)
+  rx = _ParseLengthAttrOrDefault(node, 'rx', gs, 0.0)
+  ry = _ParseLengthAttrOrDefault(node, 'ry', gs, 0.0)
+  if rx == 0.0 and ry > 0.0:
+    rx = ry
+  elif rx > 0.0 and ry == 0.0:
+    ry = rx
+  if rx > w / 2.0:
+    rx = w / 2.0
+  if ry > h / 2.0:
+    ry = h / 2.0
+  subpath = geom.Subpath()
+  subpath.closed = True
+  if rx == 0.0 and ry == 0.0:
+    subpath.AddSegment(_LineSeg((x, y), (x+w, y), gs))
+    subpath.AddSegment(_LineSeg((x+w, y), (x+w, y+h), gs))
+    subpath.AddSegment(_LineSeg((x+w, y+h), (x, y+h), gs))
+    subpath.AddSegment(_LineSeg((x, y+h), (x, y), gs))
+  else:
+    wmid = w - 2*rx
+    hmid = h - 2*ry
+    # top line
+    if wmid > TOL:
+      subpath.AddSegment(_LineSeg((x+rx, y), (x+rx+wmid, y), gs))
+    # top right corner: remember, y positive downward, so this clockwise
+    subpath.AddSegment(_ArcSeg((x+rx+wmid, y), (x+w, y+ry),
+        (rx, ry), 0.0, False, False, gs))
+    # right line
+    if hmid > TOL:
+      subpath.AddSegment(_LineSeg((x+w, y+ry), (x+w, y+ry+hmid), gs))
+    # bottom right corner
+    subpath.AddSegment(_ArcSeg((x+w, y+ry+hmid), (x+rx+wmid, y+h), gs))
+    # bottom line
+    if wmid > TOL:
+      subpath.AddSegment(_LineSeg((x+rx+wmid, y+h), (x+rx, y+h), gs))
+    # bottom left corner
+    subpath.AddSegment(_ArcSeg((x+rx, y+h), (x, y+ry+hmid), gs))
+    # left line
+    if hmid > TOL:
+      subpath.AddSegment(_LineSeg((x, y+ry+hmid), (x, y+ry), gs))
+    # top left corner
+    subpath.AddSegment(_ArcSeg((x, y+ry), (x+rx, y), gs))
+  path = geom.Path()
+  _SetPathAttributes(path, node, gs)
+  path.subpaths = [ subpath ]
+  art.paths.append(path)
+
+
+def _ProcessEllipse(node, art, gs):
+  """Process an 'ellipse' SVG node, updating art.
+
+  Args:
+    node: xml.dom.Node - a 'polygon' node
+    arg: geom.Art
+    gs: _SState
+  Side effects:
+    Adds path for ellipse to art
+  """
+
+  if not (node.hasAttribute('rx') and node.hasAttribute('ry')):
+    return
+  rx = _ParseLengthAttrOrDefault(node, 'rx', 0.0)
+  ry = _ParseLengthAttrOrDefault(node, 'ry', 0.0)
+  if rx < TOL or ry < TOL:
+    return
+  cx = _ParseCoordAttrOrDefault(node, 'x', 0.0)
+  cy = _ParseCoordAttrOrDefault(node, 'y', 0.0)
+  subpath = _FullEllipseSubpath(cx, cy, rx, ry, gs)
+  path = geom.Path()
+  path.subpaths = [ subpath ]
+  _SetPathAttributes(path, node, gs)
+  art.paths.append(path)
+
+
+def _ProcessCircle(node, art, gs):
+  """Process a 'circle' SVG node, updating art.
+
+  Args:
+    node: xml.dom.Node - a 'polygon' node
+    arg: geom.Art
+    gs: _SState
+  Side effects:
+    Adds path for circle to art
+  """
+
+  if not node.hasAttribute('r'):
+    return
+  r = _ParseLengthAttrOrDefault(node, 'r', 0.0)
+  if r < TOL:
+    return
+  cx = _ParseCoordAttrOrDefault(node, 'x', 0.0)
+  cy = _ParseCoordAttrOrDefault(node, 'y', 0.0)
+  subpath = _FullEllipseSubpath(cx, cy, r, r, gs)
+  path = geom.Path()
+  path.subpaths = [ subpath ]
+  _SetPathAttributes(path, node, gs)
+  art.paths.append(path)
+
+
+def _FullEllipseSubpath(cx, cy, rx, ry, gs):
+  """Return a Subpath for a full ellipse.
+
+  Args:
+    cx: float - center x
+    cy: float - center y
+    rx: float - x radius
+    ry: float - y radius
+    gs: _SState - for transform
+  Returns:
+    geom.Subpath
+  """
+
+  # arc starts at 3 o'clock
+  # TODO: if gs has rotate transform, figure that out
+  # and use that as angle for arc x-rotation
+  subpath = geom.Subpath()
+  subpath.closed = True
+  subpath.AddSegment(_ArcSeg((cx+rx, cy), (cx, cy+ry),
+      (rx, ry), 0.0, False, False, gs))
+  subpath.AddSegment(_ArcSeg((cx, cy+ry), (cx-rx, cy),
+      (rx, ry), 0.0, False, False, gs))
+  subpath.AddSegment(_ArcSeg((cx-rx, cy), (cx, cy-ry),
+      (rx, ry), 0.0, False, False, gs))
+  subpath.AddSegment(_ArcSeg((cx, cy-ry), (cx+rx, cy),
+      (rx, ry), 0.0, False, False, gs))
+  return subpath
 
 
 def _LineSeg(p1, p2, gs):
@@ -344,22 +523,34 @@ def _SetPathAttributes(path, node, gs):
     May set filled, fillevenodd, stroked, fillpaint, strokepaint in path.
   """
 
+  fill = gs.fill
+  stroke = gs.stroke
+  fillrule = gs.fillrule
+  if node.hasAttribute('style'):
+    style = _CSSInlineDict(node.getAttribute('style'))
+    if 'fill' in style:
+      fill = style['fill']
+    if 'stroke' in style:
+      stroke = style['stroke']
+    if 'fill-rule' in style:
+      fillrule = style['fill-rule']
   if node.hasAttribute('fill'):
-    path.fillpaint = _ParsePaint(node.getAttribute('fill'))
-    if path.fillpaint:
+    fill = node.getAttribute('fill')
+  if fill != 'none':
+    paint = _ParsePaint(fill)
+    if paint is not None:
+      path.fillpaint = paint
       path.filled = True
-  elif gs.fill:
-    path.filled = True
-    path.fillpaint = gs.fill
   if node.hasAttribute('stroke'):
-    path.strokepaint = _ParsePaint(node.getAttribute('stroke'))
-    if path.strokepaint:
+    stroke = node.getAttribute('stroke')
+  if stroke != 'none':
+    stroke = _ParsePaint(stroke)
+    if stroke is not None:
+      path.strokepaint = paint
       path.stroked = True
-  elif gs.stroke:
-    path.stroked = True
-    path.strokepaint = gs.stroke
   if node.hasAttribute('fill-rule'):
-    path.fillevenodd = node.getAttribute('fill-rule') == 'evenodd'
+    fillrule = node.getAttribute('fill-rule')
+  path.fillevenodd = (fillrule == 'evenodd')
 
 
 # Some useful regular expressions
@@ -367,6 +558,24 @@ _re_float = re.compile(r"(\+|-)?(([0-9]+\.[0-9]*)|(\.[0-9]+)|([0-9]+))")
 _re_int = re.compile(r"(\+|-)?[0-9]+")
 _re_wsopt = re.compile(r"\s*")
 _re_wscommaopt = re.compile(r"(\s*,\s*)|(\s*)")
+_re_namevalue = re.compile(r"\s*(\S+)\s*:\s*(\S+)\s*(?:;|$)")
+
+
+def _CSSInlineDict(s):
+  """Parse string s as CSS inline spec, and return a dictionary for it.
+
+  An inline CSS spec is semi-colon separated list of prop : value pairs,
+  such as: "fill:none;fill-rule : evenodd"
+
+  Args:
+    s: string - inline CSS spec
+  Returns:
+    dict : maps string (prop name) -> string (value)
+  """
+
+  pairs = _re_namevalue.findall(s)
+  return dict(pairs)
+
 
 
 def _ParsePaint(s):
@@ -399,6 +608,47 @@ def _ParsePaint(s):
     if s in geom.ColorDict:
       return geom.ColorDict[s]
   return None
+
+
+def _ParseLengthAttrOrDefault(node, attr, gs, default):
+  """Parse the given attribute as a length, else return default.
+
+  Args:
+    node: xml.dom.Node
+    attr: string - the attribute name
+    gs: _SState - for dots-per-inch, for units conversion
+    default: float - to return if no attr or error parsing it
+  Returns:
+    float - the length
+  """
+
+  if not node.hasAttribute(attr):
+    return default
+  (_, v) = _ParseLength(node.getAttribute(attr), gs, 0)
+  if v is None:
+    return default
+  else:
+    return v
+
+
+def _ParseCoordAttrOrDefault(node, attr, default):
+  """Parse the given attribute as a coordinate, else return default.
+
+  Args:
+    node: xml.dom.Node
+    attr: string - the attribute name
+    default: float - to return if no attr or error parsing it
+  Returns:
+    float - the coordinate
+  """
+
+  if not node.hasAttribute(attr):
+    return default
+  (_, v) = _ParseCoord(node.getAttribute(attr), 0)
+  if v is None:
+    return default
+  else:
+    return v
 
 
 def _ParseCoord(s, i):
@@ -517,6 +767,42 @@ def _ParseCoordPairList(s):
       break
     ans.append(pair)
   return ans
+
+
+_UnitDict = {
+  'in' : 1.0, 'px' : 1.0, 'mm' : 0.0393700787,
+  'cm' : 0.393700787, 'pt' : 0.0138888889, 'pc': 0.166666667,
+  # assume 10pt font, 5pt font x-height
+  'em' : 0.138888889, 'ex' : 0.0138888889*5 }
+
+
+def _ParseLength(s, gs, i):
+  """Parse a length (floating point number, with possible units).
+
+  Args:
+    s: string
+    gs: _SState, for dpi if needed for units conversion
+    i: int - where to start parsing
+  Returns:
+    (int, float or None) - int is index after the coordinate
+      and subsequent white space; float is converted to user coords
+  """
+
+  (i, v) = _ParseCoord(s, i)
+  if v is None:
+    return (i, None)
+  upi = 1.0
+  if i < len(s):
+    if s[i] == '%':
+      # supposed to be percentage of nearest enclosing
+      # viewport in appropriate direction.
+      # for now, assume viewport is 10in in each dir
+      upi = dpi*10.0/100.0
+    elif i < len(s)-1:
+      cc = s[i:i+2]
+      if cc in _UnitDict:
+        upi = gs.dpi * _UnitDict[cc]
+  return (i, v*upi)
 
 
 def _ParseArc(s, i):

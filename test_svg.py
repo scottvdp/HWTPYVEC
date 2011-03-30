@@ -100,12 +100,22 @@ class TestPaths(unittest.TestCase):
     self.assertEqual(endpt, (2.0, -1.0))
     (i, sp, endpt) = svg._ParseSubpath("m 1.0 0.0 l 2.0 3.0", 0, (5.0, 6.0), gs)
     self.assertEqual(sp.segments, [('L', (6.0, 6.0), (8.0, 9.0))])
+    (i, sp, _) = svg._ParseSubpath("m 1.0 0 h 3.5 v 2.0", 0, z, gs)
+    self.assertEqual(sp.segments, [('L', (1.0, 0.0), (4.5, 0.0)),
+        ('L', (4.5, 0.0), (4.5, 2.0))])
 
   def testParseCurveSubpaths(self):
     gs = svg._SState()
     z = (0.0, 0.0)
     (i, sp, _) = svg._ParseSubpath("M 0 0 C 1,1 2,1 0,3", 0, z, gs)
     self.assertEqual(sp.segments, [('B', (0.0, 0.0), (0.0, 3.0), (1.0, 1.0), (2.0, 1.0))])
+
+  def testArcSubpaths(self):
+    gs = svg._SState()
+    z = (0.0, 0.0)
+    (i, sp, _) = svg._ParseSubpath("M 0 0 A10,10 30 0 1 8.0 9.5", 0, z, gs)
+    self.assertEqual(sp.segments, [('A', (0.0, 0.0), (8.0, 9.5),
+        (10.0, 10.0), 30.0, False, True)])
 
 
 
