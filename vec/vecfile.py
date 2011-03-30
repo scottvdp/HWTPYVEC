@@ -27,8 +27,9 @@ and faces specified in a vector file.
 __author__ = "howard.trickey@gmail.com"
 
 import re
-from . import pdf
 from . import geom
+from . import pdf
+from . import svg
 
 WARN = True   # print Warnings about strange things?
 
@@ -50,6 +51,8 @@ def ClassifyFile(filename):
     If there's an error, returns ("error", reason-string)
   """
 
+  if filename.endswith(".svg"):
+    return ("svg", "")
   try:
     f = open(filename, "rb")
     start = f.read(25)
@@ -129,6 +132,8 @@ def ParseVecFile(filename):
   elif major == "eps" or (major == "ai" and minor == "eps"):
     toks = TokenizeAIEPSFile(filename)
     return ParsePS(toks, major, minor)
+  elif major == "svg":
+    return svg.ParseSVGFile(filename)
   else:
     return None
 

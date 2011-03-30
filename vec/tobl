@@ -1,4 +1,4 @@
 #!/bin/sh
 bl=/home/trickey/ltrickey/blender/2.56/scripts/addons/io_vector
 cp blender__init__.py $bl/__init__.py
-cp geom.py model.py pdf.py triquad.py vecfile.py art2polyarea.py offset.py $bl
+cp geom.py model.py pdf.py triquad.py vecfile.py art2polyarea.py offset.py svg.py $bl

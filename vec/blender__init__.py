@@ -17,13 +17,13 @@
 # ##### END GPL LICENSE BLOCK #####
 
 bl_info = {
-  "name": "Adobe Illustrator / PDF",
+  "name": "Adobe Illustrator / PDF / SVG",
   "author": "Howard Trickey",
-  "version": (0, 6),
+  "version": (0, 7),
   "blender": (2, 5, 6),
   "api": 35040,
-  "location": "File > Import-Export > Adobe Illustrator/PDF ",
-  "description": "Import Adobe Illustrator and PDF",
+  "location": "File > Import-Export > Adobe Illustrator/PDF/SVG ",
+  "description": "Import Adobe Illustrator, PDF, and SVG",
   "warning": "",
   "wiki_url": "",
   "tracker_url": "",
@@ -44,8 +44,8 @@ import bpy
 from bpy.props import *
 
 class VectorImporter(bpy.types.Operator):
-  bl_idname = "import.aipdf"
-  bl_label = "Import AI/PDF"
+  bl_idname = "import_vec.aipdfsvg"
+  bl_label = "Import AI/PDF/SVG"
   bl_options = {"REGISTER", "UNDO"}
 
   filepath = StringProperty(name="File Path",
@@ -107,7 +107,7 @@ class VectorImporter(bpy.types.Operator):
   num_verts = IntProperty(name="Number of vertices",
     default = 0)
   num_faces = IntProperty(name="Number of faces",
-    default = 0)  
+    default = 0)
 
   def draw(self, context):
     layout = self.layout
@@ -203,7 +203,7 @@ def add_colors(mesh, colors):
   
 
 def menu_import(self, context):
-  self.layout.operator(VectorImporter.bl_idname, text="Adobe Illustrator or PDF files (.ai, .pdf)") #.filepath = "*.ai, *.pdf"
+  self.layout.operator(VectorImporter.bl_idname, text="Vector files (.ai, .pdf, .svg)") #.filepath = "*.ai, *.pdf *.svg"
 
 def register():
   bpy.utils.register_module(__name__)

@@ -24,7 +24,6 @@ __author__ = "howard.trickey@gmail.com"
 import re
 import xml.dom.minidom
 from . import geom
-from . import vecfile
 
 TOL = 1e-5
 
@@ -350,17 +349,20 @@ def _ProcessRect(node, art, gs):
     if hmid > TOL:
       subpath.AddSegment(_LineSeg((x+w, y+ry), (x+w, y+ry+hmid), gs))
     # bottom right corner
-    subpath.AddSegment(_ArcSeg((x+w, y+ry+hmid), (x+rx+wmid, y+h), gs))
+    subpath.AddSegment(_ArcSeg((x+w, y+ry+hmid), (x+rx+wmid, y+h),
+        (rx, ry), 0.0, False, False, gs))
     # bottom line
     if wmid > TOL:
       subpath.AddSegment(_LineSeg((x+rx+wmid, y+h), (x+rx, y+h), gs))
     # bottom left corner
-    subpath.AddSegment(_ArcSeg((x+rx, y+h), (x, y+ry+hmid), gs))
+    subpath.AddSegment(_ArcSeg((x+rx, y+h), (x, y+ry+hmid),
+        (rx, ry), 0.0, False, False, gs))
     # left line
     if hmid > TOL:
       subpath.AddSegment(_LineSeg((x, y+ry+hmid), (x, y+ry), gs))
     # top left corner
-    subpath.AddSegment(_ArcSeg((x, y+ry), (x+rx, y), gs))
+    subpath.AddSegment(_ArcSeg((x, y+ry), (x+rx, y),
+        (rx, ry), 0.0, False, False, gs))
   path = geom.Path()
   _SetPathAttributes(path, node, gs)
   path.subpaths = [ subpath ]
@@ -380,12 +382,12 @@ def _ProcessEllipse(node, art, gs):
 
   if not (node.hasAttribute('rx') and node.hasAttribute('ry')):
     return
-  rx = _ParseLengthAttrOrDefault(node, 'rx', 0.0)
-  ry = _ParseLengthAttrOrDefault(node, 'ry', 0.0)
+  rx = _ParseLengthAttrOrDefault(node, 'rx', gs, 0.0)
+  ry = _ParseLengthAttrOrDefault(node, 'ry', gs, 0.0)
   if rx < TOL or ry < TOL:
     return
-  cx = _ParseCoordAttrOrDefault(node, 'x', 0.0)
-  cy = _ParseCoordAttrOrDefault(node, 'y', 0.0)
+  cx = _ParseCoordAttrOrDefault(node, 'cx', 0.0)
+  cy = _ParseCoordAttrOrDefault(node, 'cy', 0.0)
   subpath = _FullEllipseSubpath(cx, cy, rx, ry, gs)
   path = geom.Path()
   path.subpaths = [ subpath ]
@@ -406,11 +408,11 @@ def _ProcessCircle(node, art, gs):
 
   if not node.hasAttribute('r'):
     return
-  r = _ParseLengthAttrOrDefault(node, 'r', 0.0)
+  r = _ParseLengthAttrOrDefault(node, 'r', gs, 0.0)
   if r < TOL:
     return
-  cx = _ParseCoordAttrOrDefault(node, 'x', 0.0)
-  cy = _ParseCoordAttrOrDefault(node, 'y', 0.0)
+  cx = _ParseCoordAttrOrDefault(node, 'cx', 0.0)
+  cy = _ParseCoordAttrOrDefault(node, 'cy', 0.0)
   subpath = _FullEllipseSubpath(cx, cy, r, r, gs)
   path = geom.Path()
   path.subpaths = [ subpath ]
@@ -544,7 +546,7 @@ def _SetPathAttributes(path, node, gs):
   if node.hasAttribute('stroke'):
     stroke = node.getAttribute('stroke')
   if stroke != 'none':
-    stroke = _ParsePaint(stroke)
+    paint = _ParsePaint(stroke)
     if stroke is not None:
       path.strokepaint = paint
       path.stroked = True
@@ -581,7 +583,8 @@ def _CSSInlineDict(s):
 def _ParsePaint(s):
   """Parse an SVG paint definition and return our version of Paint.
 
-  If fail to parse, or the color is 'none', return None.
+  If is 'none', return None.
+  If fail to parse (e.g., a TODO syntax), return black_paint.
 
   Args:
     s: string - should contain an SVG paint spec
@@ -607,7 +610,7 @@ def _ParsePaint(s):
   else:
     if s in geom.ColorDict:
       return geom.ColorDict[s]
-  return None
+  return geom.black_paint
 
 
 def _ParseLengthAttrOrDefault(node, attr, gs, default):
@@ -769,8 +772,9 @@ def _ParseCoordPairList(s):
   return ans
 
 
+# units to be scaled by 'dots-per-inch' with these factors
 _UnitDict = {
-  'in' : 1.0, 'px' : 1.0, 'mm' : 0.0393700787,
+  'in' : 1.0, 'mm' : 0.0393700787,
   'cm' : 0.393700787, 'pt' : 0.0138888889, 'pc': 0.166666667,
   # assume 10pt font, 5pt font x-height
   'em' : 0.138888889, 'ex' : 0.0138888889*5 }
@@ -800,8 +804,12 @@ def _ParseLength(s, gs, i):
       upi = dpi*10.0/100.0
     elif i < len(s)-1:
       cc = s[i:i+2]
-      if cc in _UnitDict:
+      if cc == 'px':
+        upi = 1.0
+        i += 2
+      elif cc in _UnitDict:
         upi = gs.dpi * _UnitDict[cc]
+        i += 2
   return (i, v*upi)
 
 

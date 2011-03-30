@@ -34,6 +34,7 @@ To use it:
      horizontal that the bevel sides pitch up
 
 Version history:
+0.7: (3/30/11) Added SVG support
 0.6: (3/27/11) Added display of number of vertices and faces.
   Added cap_back option for capping the back.
   Changed object name to be file name without extension.

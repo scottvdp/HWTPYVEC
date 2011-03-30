@@ -2,20 +2,28 @@
 
 import unittest
 import vec
+import xml.dom.minidom
 from vec import geom
 from vec import vecfile
 from vec import art2polyarea
 from vec import svg
 from vec import showfaces
 
-SHOW = True  # should we show graphic plots of tested files?
+SHOW = False  # should we show graphic plots of tested files?
 
 def DumpArt(art):
   print("ART")
   for p in art.paths:
-    print("path; filled=", p.filled, "fillpaint=", p.fillpaint.color)
+    print("path; filled=", p.filled, "fillpaint=", p.fillpaint.color,
+        "stroked=", p.stroked, "strokepaint=", p.strokepaint.color)
     for sp in p.subpaths:
       print(sp.segments)
+
+
+def GetNode(s):
+  doc = xml.dom.minidom.parseString(s)
+  return doc.firstChild
+
 
 class TestImportSVGFile(unittest.TestCase):
 
@@ -80,6 +88,22 @@ class TestPaint(unittest.TestCase):
     self.assertEqual(p.color, (18.0/255.0, 0.0, 1.0))
     p = svg._ParsePaint("yellow")
     self.assertEqual(p.color, (1.0, 1.0, 0.0))
+    p = svg._ParsePaint("url(#g)")
+    self.assertEqual(p.color, geom.black_paint.color)
+
+
+class TestLength(unittest.TestCase):
+
+  def testParseLength(self):
+    gs = svg._SState()
+    gs.dpi = 200
+    (i, v) = svg._ParseLength("11", gs, 0)
+    self.assertEqual(v, 11.0)
+    (i, v) = svg._ParseLength("-3.5 px", gs, 0)
+    self.assertEqual(v, -3.5)
+    self.assertEqual(i, len("-3.5 px"))
+    (i, v) = svg._ParseLength("3in", gs, 0)
+    self.assertEqual(v, 600.0)
 
 
 class TestPaths(unittest.TestCase):
@@ -109,6 +133,8 @@ class TestPaths(unittest.TestCase):
     z = (0.0, 0.0)
     (i, sp, _) = svg._ParseSubpath("M 0 0 C 1,1 2,1 0,3", 0, z, gs)
     self.assertEqual(sp.segments, [('B', (0.0, 0.0), (0.0, 3.0), (1.0, 1.0), (2.0, 1.0))])
+    (i, sp, _) = svg._ParseSubpath("M0 0 C  1,1 2,1 0,3 S 4,5 6,7", 0, z, gs)
+    self.assertEqual(len(sp.segments), 2)
 
   def testArcSubpaths(self):
     gs = svg._SState()
@@ -117,6 +143,55 @@ class TestPaths(unittest.TestCase):
     self.assertEqual(sp.segments, [('A', (0.0, 0.0), (8.0, 9.5),
         (10.0, 10.0), 30.0, False, True)])
 
+
+class TestRect(unittest.TestCase):
+
+  def testProcessRect(self):
+    gs = svg._SState()
+    art = geom.Art()
+    s = '<rect x="1" y="1" width="100" height="200" fill="none" stroke="blue"/>'
+    svg._ProcessRect(GetNode(s), art, gs)
+    self.assertEqual(art.paths[0].subpaths[0].segments,
+      [('L', (1.0, 1.0), (101.0, 1.0)), ('L', (101.0, 1.0), (101.0, 201.0)),
+       ('L', (101.0, 201.0), (1.0, 201.0)), ('L', (1.0, 201.0), (1.0, 1.0))])
+    s = '<rect width="10" height="10" rx="2" fill="black"/>'
+    art = geom.Art()
+    svg._ProcessRect(GetNode(s), art, gs)
+    self.assertEqual(art.paths[0].subpaths[0].segments,
+      [('L', (2.0, 0.0), (8.0, 0.0)), ('A', (8.0, 0.0), (10.0, 2.0), (2.0, 2.0), 0.0, False, False),
+       ('L', (10.0, 2.0), (10.0, 8.0)), ('A', (10.0, 8.0), (8.0, 10.0), (2.0, 2.0), 0.0, False, False),
+       ('L', (8.0, 10.0), (2.0, 10.0)), ('A', (2.0, 10.0), (0.0, 8.0), (2.0, 2.0), 0.0, False, False),
+       ('L', (0.0, 8.0), (0.0, 2.0)), ('A', (0.0, 2.0), (2.0, 0.0), (2.0, 2.0), 0.0, False, False)])
+
+
+class TestCircle(unittest.TestCase):
+
+  def testProcessCircle(self):
+    gs = svg._SState()
+    art = geom.Art()
+    s = '<circle cx="600" cy="200" r="100" fill="red"/>'
+    svg._ProcessCircle(GetNode(s), art, gs)
+    self.assertEqual(art.paths[0].subpaths[0].segments,
+      [('A', (700.0, 200.0), (600.0, 300.0), (100.0, 100.0), 0.0, False, False),
+       ('A', (600.0, 300.0), (500.0, 200.0), (100.0, 100.0), 0.0, False, False),
+       ('A', (500.0, 200.0), (600.0, 100.0), (100.0, 100.0), 0.0, False, False),
+       ('A', (600.0, 100.0), (700.0, 200.0), (100.0, 100.0), 0.0, False, False)])
+    self.assertEqual(art.paths[0].filled, True)
+    self.assertEqual(art.paths[0].fillpaint.color, (1.0, 0.0, 0.0))
+
+
+class Ellipse(unittest.TestCase):
+
+  def testProcessEllipse(self):
+    gs = svg._SState()
+    art = geom.Art()
+    s = '<ellipse cx="10" cy="20" rx="100px" ry="50px" fill="black"/>'
+    svg._ProcessEllipse(GetNode(s), art, gs)
+    self.assertEqual(art.paths[0].subpaths[0].segments,
+      [('A', (110.0, 20.0), (10.0, 70.0), (100.0, 50.0), 0.0, False, False),
+       ('A', (10.0, 70.0), (-90.0, 20.0), (100.0, 50.0), 0.0, False, False),
+       ('A', (-90.0, 20.0), (10.0, -30.0), (100.0, 50.0), 0.0, False, False),
+       ('A', (10.0, -30.0), (110.0, 20.0), (100.0, 50.0), 0.0, False, False)])
 
 
 if __name__ == "__main__":
