@@ -320,6 +320,9 @@ def _EvenBezier3Approx(cps, options):
 	            geom.VecLen(geom.VecSub(cps[3], cps[2]))))
   # make sure segment lengths are at least as short as even_length
   numsegs = math.ceil(arc_length / options.even_length)
+  # unless smoothness is zero, make sure Beziers split at least once
+  if options.smoothness > 0 and numsegs == 1:
+    numsegs = 2
   ans = [ cps[0] ]
   for i in range(1, numsegs):
     t = i * (1.0 / numsegs)

@@ -43,6 +43,7 @@ import math
 import bpy
 from bpy.props import *
 
+
 class VectorImporter(bpy.types.Operator):
   bl_idname = "import_vec.aipdfsvg"
   bl_label = "Import AI/PDF/SVG"
@@ -133,7 +134,6 @@ class VectorImporter(bpy.types.Operator):
     #convert the filename to an object name
     if not self.filepath:
       return
-    # objname = bpy.path.display_name(self.filepath.split("\\")[-1].split("/")[-1])
     objname = self.filepath.split("\\")[-1].split("/")[-1]
     if objname.find(".") > 0:
       objname = objname.split(".")[0]
