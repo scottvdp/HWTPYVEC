@@ -587,10 +587,13 @@ def ParsePS(toks, major = "pdf", minor = ""):
             pstate.gstate.ctm.ComposeTransform(0.0, 0.0,
                 0.0, 0.0, args[0], args[1])
         if len(args) == 3:
-          if op == "rg":
+          if op == "rg" or op == "scn":
             # rgb for non-stroking operations
+            # For scn should really refer to Color space from cs operator,
+            # which in turn may need to look in Resource Dictionary in pdf,
+            # so for now punt and assume rgb if three operands
             pstate.gstate.fillpaint = geom.Paint(args[0], args[1], args[2])
-          elif op == "RG":
+          elif op == "RG" or op == "SCN":
             pstate.gstate.strokepaint = geom.Paint(args[0], args[1], args[2])
         elif len(args) == 4:
           if op == "v" or op == "V":
@@ -617,11 +620,14 @@ def ParsePS(toks, major = "pdf", minor = ""):
               pstate.DrawPath(True, False)
             elif op == "rectstroke":
               pstate.DrawPath(False, True)
-          elif op == "k":
+          elif op == "k" or op == "scn":
             # cmyk for non-stroking operations
+            # For scn should really refer to Color space from cs operator,
+            # which in turn may need to look in Resource Dictionary in pdf,
+            # so for now punt and assume cmyk if four operands
             pstate.gstate.fillpaint = geom.Paint.CMYK(args[0],
                 args[1], args[2], args[3])
-          elif op == "K":
+          elif op == "K" or op == "SCN":
             pstate.gstate.strokepaint = geom.Paint.CMYK(args[0],
                 args[1], args[2], args[3])
         elif len(args) == 6:
