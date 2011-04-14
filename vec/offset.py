@@ -44,7 +44,6 @@ class Spoke(object):
         from the face edges moves at speed 1.
     face: int - index of face containing this Spoke, in Offset
     index: int - index of this Spoke in its face
-    destface: int - index of face containing Spoke dest
     destindex: int - index of Spoke dest in its face
   """
 
@@ -61,6 +60,8 @@ class Spoke(object):
       v: int - index of point spoke grows from
       prev: int - index of point before v on boundary (in CCW order)
       next: int - index of point after v on boundary (in CCW order)
+      face: int - index of face containing this spoke, in containing offset
+      index: int - index of this spoke in its face
       points: geom.Points - maps vertex indices to 2d coords
     """
 
@@ -68,7 +69,6 @@ class Spoke(object):
     self.dest = v
     self.face = face
     self.index = index
-    self.destface = -1
     self.destindex = -1
     vmap = points.pos
     vp = vmap[v]
@@ -298,9 +298,7 @@ class Offset(object):
         the offset polygonal area are computed.
     facespokes: list of list of Spoke - each sublist is a closed face
         (oriented CCW); the faces may mutually interfere.
-        These lists are spokes for polyarea.poly + polyarea.holes,
-        except that the lists of the holes are reversed to make them
-        all CCW.
+        These lists are spokes for polyarea.poly + polyarea.holes.
     endtime: float - time when this offset hits its first
         event (relative to beginning of this offset)
     timesofar: float - sum of times taken by all containing Offsets
@@ -419,12 +417,16 @@ class Offset(object):
         if abs(t-bestt) < TOL:
           bestevs[0].extend(ve)
           bestevs[1].extend(ee)
+    if bestt == 1e100:
+      # shouldn't happen?  but seems to...
+      return
     if abs(bestt) < TOL:
       # seems to be in a loop, so quit
       return
     self.endtime = bestt
     (ve, ee) = bestevs
     newfaces = []
+    splitjoin = None
     if target < self.endtime:
       self.endtime = target
       newfaces = self.MakeNewFaces(self.endtime)
@@ -435,17 +437,53 @@ class Offset(object):
       newfaces = self.MakeNewFaces(self.endtime)
     else:
       # Edge events too
+      # First make the new faces (handles all vertex events)
       newfaces = self.MakeNewFaces(self.endtime)
-      for ev in ee:
-        self.SplitJoinFaces(newfaces, ev)
-    self.CleanFaces(newfaces)
+      # Only do one edge event (handle other simultaneous edge
+      # events in subsequent recursive Build calls)
+      splitjoin = self.SplitJoinFaces(newfaces, ee[0])
     nexttarget = target - self.endtime
     if len(newfaces) > 0:
       pa = geom.PolyArea(points = self.polyarea.points)
-      pa.poly = newfaces[0]
-      pa.holes = newfaces[1:]
       pa.color = self.polyarea.color
-      self.inneroffsets = [ Offset(pa, self.timesofar+self.endtime) ]
+      newt = self.timesofar+self.endtime
+      pa2 = None  # may make another
+      if not splitjoin:
+        pa.poly = newfaces[0]
+        pa.holes = newfaces[1:]
+      elif splitjoin[0] == 'split':
+        (_, findex, newface0, newface1) = splitjoin
+        if findex == 0:
+          # Outer poly of polyarea was split.
+          # Now there will be two polyareas.
+          # If there were holes, need to allocate according to
+	  # which one contains the holes.
+          pa.poly = newface0
+          pa2 = geom.PolyArea(points = self.polyarea.points)
+          pa2.color = self.polyarea.color
+          pa2.poly = newface1
+          if len(newfaces) > 1:
+            assert(False)  # TODO: implement hole containment tests
+          self.inneroffsets = [ Offset(pa, newt), Offset(pa2, newt) ]
+        else:
+          # A hole was split. New faces just replace the split one.
+          pa.poly = newfaces[0]
+          pa.holes = newfaces[0:findex] + [ newface0, newface1 ] + \
+                     newfaces[findex+1:]
+      else:
+        # A join
+        (_, findex, othfindex, newface0)
+        if findex == 0 or othfindex == 0:
+          # Outer poly was joined to one hole.
+          pa.poly = newface0
+          pa.holes = [ f for f in newfaces if f is not None ] 
+        else:
+          # Two holes were joined
+          pa.poly = newfaces[0]
+          pa.holes = [ f for f in newfaces if f is not None ] + [ newface0 ]
+      self.inneroffsets = [ Offset(pa, newt) ]
+      if pa2:
+        self.inneroffsets.append(Offset(pa2, newt))
       if nexttarget > TOL:
         for o in self.inneroffsets:
           o.Build(nexttarget)
@@ -455,6 +493,8 @@ class Offset(object):
 
     Also merges any adjacent approximately equal vertices into one vertex,
     so returned list may be smaller than len(f).
+    Also sets the destindex fields of the spokes to the vertex they
+    will now end at.
 
     Args:
       f: list of Spoke - one of self.faces
@@ -470,10 +510,16 @@ class Offset(object):
       vcoords = s.EndPoint(t, points)
       v = points.AddPoint(vcoords)
       if newface:
-        if v != newface[-1] and not (i == len(f)-1 and v == newface[0]):
-            newface.append(v)
+        if v == newface[-1]:
+          s.destindex = len(newface) - 1
+        elif i == len(f)-1 and v == newface[0]:
+          s.destindex = 0
+        else:
+          newface.append(v)
+          s.destindex = len(newface) - 1
       else:
         newface.append(v)
+        s.destindex = 0
       s.dest = v
     return newface
 
@@ -498,7 +544,7 @@ class Offset(object):
     
     Given ev, an edge event, use the ev spoke to split the
     other spoke's inner edge.
-    If the ev's face and destface are the same, this splits the
+    If the ev spoke's face and other's face are the same, this splits the
     face into two; if the faces are different, it joins them into one.
     We have just made faces at the end of the spokes.
     We have to remove the edge going from the other spoke to its
@@ -506,18 +552,19 @@ class Offset(object):
     the event spoke's destination.
     General situation:
          __  s  ____
-     \     b\ | /a       /
-     c\      \|/        /e
-      -----------------
-    o/        d        \
-    /                   \
+    c\     b\ | /a       /e
+      \      \|/        /
+      f----------------g
+     /        d        \
+   o/                   \h
   
-    where s is the event spoke and o is the "other spoke",
-    d is o's inner edge, and b is s's inner edge.
-    What we are to do is to split d into d1 and d2, with the
+    where sd is the event spoke and of is the "other spoke",
+    hg is a spoke, and cf, fg. ge, ad, and db are edges in
+    the new inside face.
+    What we are to do is to split fg into two edges, with the
     joining point attached where b,s,a join.
     There are a bunch of special cases:
-     - one of d1 or d2 might have zero length because end points
+     - one of split fg edges might have zero length because end points
        are already coincident or nearly coincident.
      - maybe c==b or e==a
 
@@ -525,31 +572,78 @@ class Offset(object):
       newfaces: list of list of int - the new faces
       ev: OffsetEvent - an edge event
     Side Effects:
-      faces in newfaces may be modified or removed, or a new face may
-      be added
+      faces in newfaces that are involved in split or join are
+      set to None
+    Returns: one of:
+      ('split', int, list of int, list of int) - int is the index in
+          newfaces of the face that was split, two lists are the
+	  split faces
+      ('join', int, int, list of int) - two ints are the indices in
+          newfaces of the faces that were joined, and the list is
+	  the joined face
     """
 
-    findex = ev.spoke.face
-    f = newfaces[findex]
-    nf = len(f)
-    si = ev.spoke.index
-    pi = ev.other.index
-    newf0 = findex
-    newf1 = len(newfaces)
+    # print("SplitJoinFaces", newfaces, ev)
+    spoke = ev.spoke
+    other = ev.other
+    findex = spoke.face
+    othfindex = other.face
+    newface = newfaces[findex]
+    othface = newfaces[othfindex]
+    nnf = len(newface)
+    nonf = len(othface)
+    d = spoke.destindex
+    f = other.destindex 
+    c = (f-1) % nnf
+    g = (f+1) % nnf
+    e = (f+2) % nnf
+    a = (d-1) % nnf
+    b = (d+1) % nnf
+    # print("newface=", newface)
+    # print("d=", d, "f=", f, "c=", c, "g=", g, "e=", e, "a=", a, "b=", b)
     newface0 = []
     newface1 = []
     # The two new faces put spoke si's dest on edge between
     # pi's dest and qi (edge after pi)'s dest in original face.
     # These are indices in the original face; the current dest face
     # may have fewer elements because of merging successive points
-    # TODO: finish this
-
-  def CleanFaces(self, newfaces):
-    """Fix up the newfaces"""
-
-    # TODO
-    pass
-
+    if findex == othfindex:
+      # Case where splitting one new face into two.
+      # The new new faces are:
+      # [d, g, e, ..., a] and [d, b, ..., c, f]
+      # (except we actually want the vertex numbers at those positions)
+      newface0 = [ newface[d] ]
+      i = g
+      while i != d:
+        newface0.append(newface[i])
+        i = (i+1) % nnf
+      newface1 = [ newface[d] ]
+      i = b
+      while i != f:
+        newface1.append(newface[i])
+        i = (i+1) % nnf
+      newface1.append(newface[f])
+      # print("newface0=", newface0, "newface1=", newface1)
+      # now the destindex values for the spokes are messed up
+      # but I don't think we need them again
+      newfaces[findex] = None
+      return ('split', findex, newface0, newface1)
+    else:
+      # Case where joining two faces into one.
+      # The new face is splicing d's face between
+      # f and g in other face (or the reverse of all of that).
+      newface0 = [ othface[i] for i in range(0, f+1) ]
+      newface.append(newface[d])
+      i = b
+      while i != d:
+        newface0.append(newface[i])
+        i = (i+1) % nnf
+      newface.extend([ othface[i] for i in range(g, nonf) ])
+      newfaces[findex] = None
+      newfaces[othfindex] = None
+      return ('join', findex, othfindex, newface0)
+      
+    
   def InnerPolyAreas(self):
     """Return the interior of the offset (and contained offsets) as PolyAreas.
 

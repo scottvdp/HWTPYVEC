@@ -276,29 +276,38 @@ class TestNextSpokeEvents(unittest.TestCase):
 
 class TestBuild(unittest.TestCase):
 
-  def runTest(self):
+  def testTri(self):
     pa = geom.PolyArea(Vs1, F1tri)
     o = offset.Offset(pa, 0.0)
     o.Build()
     self.assertAlmostEqual(o.endtime, 0.11803398875)
     self.assertEqual(len(o.inneroffsets), 0)
     # ShowOffset(o)
+
+  def testRect(self):
     pa = geom.PolyArea(Vs2, [0, 12, 15, 1])
     o = offset.Offset(pa, 0.0)
     o.Build()
     self.assertAlmostEqual(o.endtime, 0.5)
     self.assertEqual(len(o.inneroffsets), 0)
     # ShowOffset(o)
+
+  def testIrreg(self):
     pa = geom.PolyArea(Vs4, F4)
     o = offset.Offset(pa, 0.0)
     o.Build()
     self.assertAlmostEqual(o.endtime, 0.1155192686)
     self.assertEqual(len(o.inneroffsets), 1)
     ShowOffset(o)
+
+  def testConcave(self):
     pa = geom.PolyArea(Vs1, F1concave)
     o = offset.Offset(pa, 0.0)
     o.Build()
+    self.assertEqual(len(o.inneroffsets), 2)
     ShowOffset(o)
+
+
 
 class TestInnerPolyAreas(unittest.TestCase):
 
