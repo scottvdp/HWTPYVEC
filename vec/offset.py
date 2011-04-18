@@ -583,7 +583,7 @@ class Offset(object):
 	  the joined face
     """
 
-    # print("SplitJoinFaces", newfaces, ev)
+    print("SplitJoinFaces", newfaces, ev)
     spoke = ev.spoke
     other = ev.other
     findex = spoke.face
@@ -594,13 +594,13 @@ class Offset(object):
     nonf = len(othface)
     d = spoke.destindex
     f = other.destindex 
-    c = (f-1) % nnf
-    g = (f+1) % nnf
-    e = (f+2) % nnf
+    c = (f-1) % nonf
+    g = (f+1) % nonf
+    e = (f+2) % nonf
     a = (d-1) % nnf
     b = (d+1) % nnf
-    # print("newface=", newface)
-    # print("d=", d, "f=", f, "c=", c, "g=", g, "e=", e, "a=", a, "b=", b)
+    print("newface=", newface)
+    print("d=", d, "f=", f, "c=", c, "g=", g, "e=", e, "a=", a, "b=", b)
     newface0 = []
     newface1 = []
     # The two new faces put spoke si's dest on edge between
@@ -623,7 +623,7 @@ class Offset(object):
         newface1.append(newface[i])
         i = (i+1) % nnf
       newface1.append(newface[f])
-      # print("newface0=", newface0, "newface1=", newface1)
+      print("newface0=", newface0, "newface1=", newface1)
       # now the destindex values for the spokes are messed up
       # but I don't think we need them again
       newfaces[findex] = None
@@ -633,12 +633,14 @@ class Offset(object):
       # The new face is splicing d's face between
       # f and g in other face (or the reverse of all of that).
       newface0 = [ othface[i] for i in range(0, f+1) ]
-      newface.append(newface[d])
+      newface0.append(newface[d])
       i = b
       while i != d:
         newface0.append(newface[i])
         i = (i+1) % nnf
-      newface.extend([ othface[i] for i in range(g, nonf) ])
+      newface0.append(newface[d])
+      newface0.extend([ othface[i] for i in range(g, nonf) ])
+      print("newface0=", newface0)
       newfaces[findex] = None
       newfaces[othfindex] = None
       return ('join', findex, othfindex, newface0)
