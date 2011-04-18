@@ -126,7 +126,9 @@ class AnimOffset(tkinter.Frame):
   def __init__(self, offset):
     self.offset = offset
     self.time = 0.0
-    self.lines = []
+    self.polygons = []
+    self.ovals = []
+    self.labels = []
     maxx = -1e6
     maxy = -1e6
     minx = 1e6
@@ -171,19 +173,28 @@ class AnimOffset(tkinter.Frame):
     self.Redraw()
 
   def Redraw(self):
-    for x in self.lines:
+    for x in self.polygons:
       self.c.delete(x)
-    self.lines = []
-    o = self.offset
-    tprevoffsets = 0.0
+    self.polygons = []
+    for x in self.ovals:
+      self.c.delete(x)
+    self.ovals = []
+    for x in self.labels:
+      self.c.delete(x)
+    self.labels = []
+    ovalr = int(self.c.winfo_width()/100)
+    if ovalr < 1:
+      ovalr = 1
     t = self.time
-    points = o.polyarea.points
+    points = self.offset.polyarea.points
     vmap = points.pos
-    ostack = [  ]
-    while o and t >= tprevoffsets:
-      offt = t - tprevoffsets
-      if offt > o.endtime:
-        offt = o.endtime
+    used_points = set()
+    ostack = [ self.offset ]
+    while ostack:
+      o = ostack.pop()
+      offt = min(self.time - o.timesofar, o.endtime)
+      if offt < 0:
+        continue
       for f in o.facespokes:
         nf = len(f)
         for i in range(0, nf):
@@ -193,20 +204,27 @@ class AnimOffset(tkinter.Frame):
           nextp = self.Conv(vmap[nexts.origin])
           q = self.Conv(s.EndPoint(offt, points))
           nextq = self.Conv(nexts.EndPoint(offt, points))
-          line = self.c.create_line(p[0], p[1], nextp[0], nextp[1])
-          spoke = self.c.create_line(p[0], p[1], q[0], q[1])
-          iline = self.c.create_line(q[0], q[1], nextq[0], nextq[1])
-          self.lines += [line, spoke, iline]
-      tprevoffsets += o.endtime
+          used_points.add(s.origin)
+          used_points.add(nexts.origin)
+          used_points.add(s.dest)
+          used_points.add(nexts.dest)
+          poly = self.c.create_polygon(p[0], p[1], nextp[0], nextp[1],
+            nextq[0], nextq[1], q[0], q[1], fill="grey", outline="black")
+          self.polygons.append(poly)
       ostack.extend(o.inneroffsets)
-      if ostack:
-        o = ostack.pop()
-      else:
-        o = None
+    for i in used_points:
+      p = self.Conv(vmap[i])
+      oval = self.c.create_oval(p[0]-ovalr, p[1]-ovalr,
+        p[0]+ovalr, p[1]+ovalr, fill="yellow", outline="black")
+      self.ovals.append(oval)
+      if ovalr > 6:
+        label = self.c.create_text(p[0], p[1]+2, text=str(i))
+        self.labels.append(label)
 
   def Slide(self, newtime):
     self.time = float(newtime)
     self.Redraw()  # could optimize by just adjusting line ends
+
 
 def ShowOffset(offset):
   anim = AnimOffset(offset)
@@ -298,15 +316,24 @@ class TestBuild(unittest.TestCase):
     o.Build()
     self.assertAlmostEqual(o.endtime, 0.1155192686)
     self.assertEqual(len(o.inneroffsets), 1)
-    ShowOffset(o)
+    # ShowOffset(o)
 
   def testConcave(self):
     pa = geom.PolyArea(Vs1, F1concave)
     o = offset.Offset(pa, 0.0)
     o.Build()
     self.assertEqual(len(o.inneroffsets), 2)
-    ShowOffset(o)
+    # ShowOffset(o)
 
+  def testOneHole(self):
+    pa = geom.PolyArea(Vs1, F1square)
+    pahole = geom.PolyArea(geom.Points([
+      (0.3, 0.5), (0.6, 0.65), (0.45, 0.8)]),
+      [0, 1, 2])
+    pa.AddHole(pahole)
+    o = offset.Offset(pa, 0.0)
+    o.Build()
+    ShowOffset(o)
 
 
 class TestInnerPolyAreas(unittest.TestCase):

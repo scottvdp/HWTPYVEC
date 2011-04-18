@@ -472,7 +472,7 @@ class Offset(object):
                      newfaces[findex+1:]
       else:
         # A join
-        (_, findex, othfindex, newface0)
+        (_, findex, othfindex, newface0) = splitjoin
         if findex == 0 or othfindex == 0:
           # Outer poly was joined to one hole.
           pa.poly = newface0
