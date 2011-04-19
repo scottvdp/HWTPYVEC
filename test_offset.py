@@ -333,8 +333,30 @@ class TestBuild(unittest.TestCase):
     pa.AddHole(pahole)
     o = offset.Offset(pa, 0.0)
     o.Build()
+    self.assertEqual(len(o.inneroffsets), 1)
     ShowOffset(o)
 
+  def testTwoHoles(self):
+    pa = geom.PolyArea(Vs1, F1square)
+    pahole1 = geom.PolyArea(geom.Points([
+      (0.2, 0.5), (0.4, 0.65), (0.45, 0.8)]),
+      [0, 1, 2])
+    pa.AddHole(pahole1)
+    pahole2 = geom.PolyArea(geom.Points([
+      (0.5, 0.3), (0.8, 0.35), (0.75, 0.65)]),
+      [0, 1, 2])
+    pa.AddHole(pahole2)
+    o = offset.Offset(pa, 0.0)
+    o.Build()
+    self.assertEqual(len(o.inneroffsets), 1)
+    # ShowOffset(o)
+
+  def testM(self):
+    pa = geom.PolyArea(Vsm, Fsm)
+    o = offset.Offset(pa, 0.0)
+    o.Build()
+    ShowOffset(o)
+    
 
 class TestInnerPolyAreas(unittest.TestCase):
 

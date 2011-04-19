@@ -463,7 +463,16 @@ class Offset(object):
           pa2.color = self.polyarea.color
           pa2.poly = newface1
           if len(newfaces) > 1:
-            assert(False)  # TODO: implement hole containment tests
+            print("need to allocate holes")
+            for hf in newfaces[1:]:
+              if pa.ContainsPoly(hf, self.polyarea.points):
+                print("add", hf, "to", pa.poly)
+                pa.holes.append(hf)
+              elif pa2.ContainsPoly(hf, self.polyarea.points):
+                print("add", hf, "to", pa2.poly)
+                pa2.holes.append(hf)
+              else:
+                print("whoops, hole in neither poly!")
           self.inneroffsets = [ Offset(pa, newt), Offset(pa2, newt) ]
         else:
           # A hole was split. New faces just replace the split one.
@@ -600,6 +609,7 @@ class Offset(object):
     a = (d-1) % nnf
     b = (d+1) % nnf
     print("newface=", newface)
+    if findex != othfindex: print("othface=", othface)
     print("d=", d, "f=", f, "c=", c, "g=", g, "e=", e, "a=", a, "b=", b)
     newface0 = []
     newface1 = []
@@ -639,7 +649,8 @@ class Offset(object):
         newface0.append(newface[i])
         i = (i+1) % nnf
       newface0.append(newface[d])
-      newface0.extend([ othface[i] for i in range(g, nonf) ])
+      if g != 0:
+        newface0.extend([ othface[i] for i in range(g, nonf) ])
       print("newface0=", newface0)
       newfaces[findex] = None
       newfaces[othfindex] = None

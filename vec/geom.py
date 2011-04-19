@@ -175,6 +175,21 @@ class PolyArea(object):
     holepoly.reverse()
     self.holes.append(holepoly)
 
+  def ContainsPoly(self, poly, points):
+    """Tests if poly is contained within self.poly.
+
+    Args:
+      poly: list of int - indices into points
+      points: Points - maps to coords
+    Returns:
+      bool - True if poly is fully contained within self.poly
+    """
+
+    for v in poly:
+      if PointInside(points.pos[v], self.poly, self.points) == -1:
+        return False
+    return True
+
 
 class PolyAreas(object):
   """Contains a list of PolyAreas and a shared Points.
