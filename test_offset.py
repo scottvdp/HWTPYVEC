@@ -11,6 +11,8 @@ import vec
 from vec import offset
 from vec import geom
 
+SHOW = True  # should we show interactive display of built offsets?
+
 # Some test data sets
 
 # Points in pattern:
@@ -308,7 +310,8 @@ class TestBuild(unittest.TestCase):
     o.Build()
     self.assertAlmostEqual(o.endtime, 0.5)
     self.assertEqual(len(o.inneroffsets), 0)
-    # ShowOffset(o)
+    if SHOW:
+      ShowOffset(o)
 
   def testIrreg(self):
     pa = geom.PolyArea(Vs4, F4)
@@ -316,14 +319,16 @@ class TestBuild(unittest.TestCase):
     o.Build()
     self.assertAlmostEqual(o.endtime, 0.1155192686)
     self.assertEqual(len(o.inneroffsets), 1)
-    # ShowOffset(o)
+    if SHOW:
+      ShowOffset(o)
 
   def testConcave(self):
     pa = geom.PolyArea(Vs1, F1concave)
     o = offset.Offset(pa, 0.0)
     o.Build()
     self.assertEqual(len(o.inneroffsets), 2)
-    # ShowOffset(o)
+    if SHOW:
+      ShowOffset(o)
 
   def testOneHole(self):
     pa = geom.PolyArea(Vs1, F1square)
@@ -334,7 +339,8 @@ class TestBuild(unittest.TestCase):
     o = offset.Offset(pa, 0.0)
     o.Build()
     self.assertEqual(len(o.inneroffsets), 1)
-    ShowOffset(o)
+    if SHOW:
+      ShowOffset(o)
 
   def testTwoHoles(self):
     pa = geom.PolyArea(Vs1, F1square)
@@ -349,13 +355,15 @@ class TestBuild(unittest.TestCase):
     o = offset.Offset(pa, 0.0)
     o.Build()
     self.assertEqual(len(o.inneroffsets), 1)
-    # ShowOffset(o)
+    if SHOW:
+      ShowOffset(o)
 
   def testM(self):
     pa = geom.PolyArea(Vsm, Fsm)
     o = offset.Offset(pa, 0.0)
     o.Build()
-    ShowOffset(o)
+    if SHOW:
+      ShowOffset(o)
     
 
 class TestInnerPolyAreas(unittest.TestCase):

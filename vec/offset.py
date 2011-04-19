@@ -395,7 +395,6 @@ class Offset(object):
               bestt = ev.time
             if abs(ev.time - bestt) < TOL:
               beste.append(ev)
-              break   # one edge event per spoke is enough
     return (bestt, bestv, beste)
 
   def Build(self, target = 2e100):
