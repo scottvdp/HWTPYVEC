@@ -493,22 +493,24 @@ def PointInside(v, a, points):
   Cf. Eric Haines ptinpoly in Graphics Gems IV.
 
   Args:
-    v : (float, float) - coordinates of a point
+    v : (float, float) or (float, float, float) - coordinates of a point
     a : list of vertex indices defining polygon (assumed CCW)
     points: Points - to get coordinates for polygon
   Returns:
     1, 0, -1: as v is inside, on, or outside polygon a
   """
 
-  (xv, yv) = v
-  (x0, y0) = points.pos[a[-1]]
+  (xv, yv) = (v[0], v[1])
+  vlast = points.pos[a[-1]]
+  (x0, y0) = (vlast[0], vlast[1])
   if x0 == xv and y0 == yv:
     return 0
   yflag0 = y0 > yv
   inside = False
   n = len(a)
   for i in range(0, n):
-    (x1, y1) = points.pos[a[i]]
+    vi = points.pos[a[i]]
+    (x1, y1) = (vi[0], vi[1])
     if x1 == xv and y1 == yv:
       return 0
     yflag1 = y1 > yv

@@ -300,9 +300,7 @@ def AddOffsetFacesToModel(m, off, vspeed, color = (0.0, 0.0, 0.0)):
   o = off
   ostack = [ ]
   while o:
-    if o.endtime == 0.0:
-      break
-    else:
+    if o.endtime != 0.0:
       zouter = o.timesofar * vspeed
       zinner = zouter + o.endtime * vspeed
       for face in o.facespokes:

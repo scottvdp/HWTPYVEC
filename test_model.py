@@ -7,7 +7,7 @@ from vec import geom
 from vec import offset
 from vec import showfaces
 
-SHOW = False  # should we show graphic plots of tested files?
+SHOW = True  # should we show graphic plots of tested files?
 
 class TestImportAIFile(unittest.TestCase):
 
@@ -34,6 +34,7 @@ class TestImportAIFile(unittest.TestCase):
   def test3dout(self):
     opt = model.ImportOptions()
     opt.convert_options.subdiv_kind = "EVEN"
+    opt.bevel_amount = 20.0
     self.ReadModel("testfiles/3dout.ai", opt)
 
 

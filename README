@@ -34,7 +34,8 @@ To use it:
      horizontal that the bevel sides pitch up
 
 Version history:
-0.8: (TBD) CS5 Illustrator colors work better
+0.8: (4/20/11) CS5 Illustrator colors work better.
+  Bevel now handles edge events (not simultaneous ones yet, though).
 0.7: (3/30/11) Added SVG support
 0.6: (3/27/11) Added display of number of vertices and faces.
   Added cap_back option for capping the back.

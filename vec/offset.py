@@ -462,13 +462,13 @@ class Offset(object):
           pa2.color = self.polyarea.color
           pa2.poly = newface1
           if len(newfaces) > 1:
-            print("need to allocate holes")
+            # print("need to allocate holes")
             for hf in newfaces[1:]:
               if pa.ContainsPoly(hf, self.polyarea.points):
-                print("add", hf, "to", pa.poly)
+                # print("add", hf, "to", pa.poly)
                 pa.holes.append(hf)
               elif pa2.ContainsPoly(hf, self.polyarea.points):
-                print("add", hf, "to", pa2.poly)
+                # print("add", hf, "to", pa2.poly)
                 pa2.holes.append(hf)
               else:
                 print("whoops, hole in neither poly!")
@@ -591,7 +591,7 @@ class Offset(object):
 	  the joined face
     """
 
-    print("SplitJoinFaces", newfaces, ev)
+    # print("SplitJoinFaces", newfaces, ev)
     spoke = ev.spoke
     other = ev.other
     findex = spoke.face
@@ -607,9 +607,9 @@ class Offset(object):
     e = (f+2) % nonf
     a = (d-1) % nnf
     b = (d+1) % nnf
-    print("newface=", newface)
-    if findex != othfindex: print("othface=", othface)
-    print("d=", d, "f=", f, "c=", c, "g=", g, "e=", e, "a=", a, "b=", b)
+    # print("newface=", newface)
+    # if findex != othfindex: print("othface=", othface)
+    # print("d=", d, "f=", f, "c=", c, "g=", g, "e=", e, "a=", a, "b=", b)
     newface0 = []
     newface1 = []
     # The two new faces put spoke si's dest on edge between
@@ -632,7 +632,7 @@ class Offset(object):
         newface1.append(newface[i])
         i = (i+1) % nnf
       newface1.append(newface[f])
-      print("newface0=", newface0, "newface1=", newface1)
+      # print("newface0=", newface0, "newface1=", newface1)
       # now the destindex values for the spokes are messed up
       # but I don't think we need them again
       newfaces[findex] = None
@@ -650,7 +650,7 @@ class Offset(object):
       newface0.append(newface[d])
       if g != 0:
         newface0.extend([ othface[i] for i in range(g, nonf) ])
-      print("newface0=", newface0)
+      # print("newface0=", newface0)
       newfaces[findex] = None
       newfaces[othfindex] = None
       return ('join', findex, othfindex, newface0)

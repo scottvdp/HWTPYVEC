@@ -142,8 +142,9 @@ class TestParseAIFile(unittest.TestCase):
   def ParseOneAI(self, f):
     art = vecfile.ParseAIEPSFile("testfiles/" + f)
     if SHOW:
-      pareas = art2polyarea.ArtToPolyAreas(art, 0)
-      for pa in pareas:
+      opt = art2polyarea.ConvertOptions()
+      pareas = art2polyarea.ArtToPolyAreas(art, opt)
+      for pa in pareas.polyareas:
         showfaces.ShowPolyArea(pa, f)
 
   def test4pt(self):
@@ -164,8 +165,9 @@ class TestParsePDFFile(unittest.TestCase):
   def runTest(self):
     art = vecfile.ParseVecFile("testfiles/colors.ai")
     if SHOW:
+      opt = art2polyarea.ConvertOptions()
       pareas = art2polyarea.ArtToPolyAreas(art, 0)
-      for pa in pareas:
+      for pa in pareas.polyareas:
         showfaces.ShowPolyArea(pa, "colors.pdf")
 
 
