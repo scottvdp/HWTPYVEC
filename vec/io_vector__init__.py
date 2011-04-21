@@ -35,7 +35,9 @@ else:
   from . import geom
   from . import model
   from . import vecfile
+  from . import offset
   from . import pdf
+  from . import svg
   from . import triquad
   from . import art2polyarea
 
