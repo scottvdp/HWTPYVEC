@@ -22,7 +22,7 @@ bl_info = {
   "version": (0, 1),
   "blender": (2, 5, 7),
   "api": 36147,
-  "location": "View3D > Toolbar and View3D > Specials (W-key)",
+  "location": "View3D > Tools",
   "description": "Make an inset polygon inside selection.",
   "warning": "",
   "wiki_url": "",
@@ -63,8 +63,8 @@ class Inset(bpy.types.Operator):
 
   @classmethod
   def poll(cls, context):
-    ob = context.active_object
-    return (ob and ob.type == 'MESH' and context.mode == 'EDIT_MESH')
+    obj = context.active_object
+    return (obj and obj.type == 'MESH' and context.mode == 'EDIT_MESH')
 
   def draw(self, context):
     layout= self.layout
@@ -82,28 +82,65 @@ class Inset(bpy.types.Operator):
     return {'FINISHED'}
 
   def action(self, context):
+    save_global_undo = bpy.context.user_preferences.edit.use_global_undo
+    bpy.context.user_preferences.edit.use_global_undo = False
+    bpy.ops.object.mode_set(mode='OBJECT')
+    obj = bpy.context.active_object
+    mesh = obj.data
+    do_inset(mesh, self.inset_amount, self.inset_height)
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.context.user_preferences.edit.use_global_undo = save_global_undo
+
+
+def do_inset(mesh, amount, height):
+  if amount <= 0.0:
     return
+  opt = model.ImportOptions()
+  opt.bevel_amount = amount
+  opt.bevel_pitch = math.atan(height / amount)
+  faces = []
+  for face in mesh.faces:
+    if face.select and not face.hide:
+      faces.append(face)
+  m = model.Model()
+  # if add all mesh.vertices, coord indices will line up
+  for v in mesh.vertices:
+    k = m.points.AddPoint(v.co.to_tuple())
+    print("point", k, "=", m.points.pos[k])
+  if len(faces) == 1:
+    f = faces[0]
+    fverts = list(f.vertices)  # indices into mesh.vertices
+    m.faces.append(fverts)
+    print("m.faces", m.faces)
+    pa = geom.PolyArea(m.points, fverts)
+    model.BevelPolyAreaInModel(m, pa, opt)
+    # make sure faces don't end in index 0
+    for i, newf in enumerate(m.faces):
+      if newf[-1] == 0:
+        if newf[0] == 0:
+          m.faces[i] = [newf[1], newf[2], newf[3], newf[1]]
+        else:
+          m.faces[i] = [newf[-1]] + newf[:-1]
+    start_faces = len(mesh.faces)
+    mesh.faces.add(len(m.faces))
+    for i, newf in enumerate(m.faces):
+      mesh.faces[start_faces + i].vertices_raw = newf
+    mesh.update(calc_edges = True)
 
 
-class VIEW3D_PT_tools_inset(bpy.types.Panel):
-  bl_space_type = 'VIEW_3D'
-  bl_region_type = 'TOOLS'
-  bl_context = "mesh_edit"
-  bl_label = "Inset"
-
-  def draw(self, context):
-    layout = self.layout
-    layout.operator("mesh.inset", text="Inset")
+def panel_func(self, context):
+  self.layout.label(text="Inset:")
+  self.layout.operator("mesh.inset", text="Inset")
 
 
 def register():
   bpy.utils.register_class(Inset)
-  bpy.utils.register_class(VIEW3D_PT_tools_inset)
+  bpy.types.VIEW3D_PT_tools_meshedit.append(panel_func)
 
 
 def unregister():
   bpy.utils.unregister_class(Inset)
-  bpy.utils.unregister_class(Inset)
+  bpy.types.VIEW3D_PT_tools_meshedit.remove(panel_func)
 
 
 if __name__ == "__main__":
