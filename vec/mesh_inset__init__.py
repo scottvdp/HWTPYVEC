@@ -128,6 +128,15 @@ def do_inset(mesh, amount, height):
     for i, newf in enumerate(m.faces):
       mesh.faces[start_faces + i].vertices_raw = newf
     mesh.update(calc_edges = True)
+    # remove original face
+    bpy.context.tool_settings.mesh_select_mode = [False, False, True]
+    bpy.ops.object.mode_set(mode = 'EDIT')
+    bpy.ops.mesh.select_all(action = 'DESELECT')
+    bpy.ops.object.mode_set(mode = 'OBJECT')
+    f.select = True
+    bpy.ops.object.mode_set(mode = 'EDIT')
+    bpy.ops.mesh.delete(type = 'FACE')
+
 
 
 def panel_func(self, context):
