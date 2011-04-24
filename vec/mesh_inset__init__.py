@@ -39,6 +39,7 @@ else:
 
 import math
 import bpy
+import mathutils
 from bpy.props import *
 
 
@@ -106,7 +107,6 @@ def do_inset(mesh, amount, height):
   # if add all mesh.vertices, coord indices will line up
   for v in mesh.vertices:
     k = m.points.AddPoint(v.co.to_tuple())
-    print("point", k, "=", m.points.pos[k])
   if len(faces) == 1:
     f = faces[0]
     fverts = list(f.vertices)  # indices into mesh.vertices
@@ -121,6 +121,11 @@ def do_inset(mesh, amount, height):
           m.faces[i] = [newf[1], newf[2], newf[3], newf[1]]
         else:
           m.faces[i] = [newf[-1]] + newf[:-1]
+    start_vertices = len(mesh.vertices)
+    num_new_vertices = len(m.points.pos) - start_vertices
+    mesh.vertices.add(num_new_vertices)
+    for i in range(start_vertices, len(m.points.pos)):
+      mesh.vertices[i].co = mathutils.Vector(m.points.pos[i])
     start_faces = len(mesh.faces)
     mesh.faces.add(len(m.faces))
     for i, newf in enumerate(m.faces):
