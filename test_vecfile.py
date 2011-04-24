@@ -9,7 +9,7 @@ from vec import vecfile
 from vec import art2polyarea
 from vec import showfaces
 
-SHOW = False  # should we show graphic plots of tested files?
+SHOW = True  # should we show graphic plots of tested files?
 
 
 class TestClassifyNofile(unittest.TestCase):
@@ -166,7 +166,7 @@ class TestParsePDFFile(unittest.TestCase):
     art = vecfile.ParseVecFile("testfiles/colors.ai")
     if SHOW:
       opt = art2polyarea.ConvertOptions()
-      pareas = art2polyarea.ArtToPolyAreas(art, 0)
+      pareas = art2polyarea.ArtToPolyAreas(art, opt)
       for pa in pareas.polyareas:
         showfaces.ShowPolyArea(pa, "colors.pdf")
 

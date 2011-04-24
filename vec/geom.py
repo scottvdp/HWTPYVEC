@@ -249,6 +249,32 @@ class PolyAreas(object):
     return (minv, maxv)
 
 
+class Model(object):
+  """Contains a generic 3d model.
+
+  A generic 3d model has vertices with 3d coordinates.
+  Each vertex gets a 'vertex id', which is an index that
+  can be used to refer to the vertex and can be used
+  to retrieve the 3d coordinates of the point.
+
+  The actual visible part of the geometry are the faces,
+  which are n-gons (n>2), specified by a vector of the
+  n corner vertices.
+  Faces may also have colors.
+
+  Attributes:
+    points: geom.Points - the 3d vertices
+    faces: list of list of indices (each a CCW traversal of a face)
+    colors: list of (float, float, float) - if present, is parallel to 
+        faces list and gives rgb colors of faces
+  """
+
+  def __init__(self):
+    self.points = Points()
+    self.faces = []
+    self.colors = []
+
+
 class Art(object):
   """Contains a vector art diagram.
 

@@ -35,6 +35,7 @@ else:
   from . import geom
   from . import model
   from . import vecfile
+  from . import import_vecfile
   from . import offset
   from . import pdf
   from . import svg
@@ -139,7 +140,7 @@ class VectorImporter(bpy.types.Operator):
     objname = self.filepath.split("\\")[-1].split("/")[-1]
     if objname.find(".") > 0:
       objname = objname.split(".")[0]
-    options = model.ImportOptions()
+    options = import_vecfile.ImportOptions()
     options.scaled_side_target = self.scale
     options.quadrangulate = True
     options.extrude_depth = self.extrude_depth
@@ -151,7 +152,7 @@ class VectorImporter(bpy.types.Operator):
     options.convert_options.filled_only = self.filled_only
     options.convert_options.ignore_white = self.ignore_white
     options.convert_options.combine_paths = self.combine_paths
-    (mdl, msg) = model.ReadVecFileToModel(self.filepath, options)
+    (mdl, msg) = import_vecfile.ReadVecFileToModel(self.filepath, options)
     if msg:
       self.report({"ERROR"}, "Problem reading file " + self.filepath + ": " + msg)
       return {"FINISHED"}

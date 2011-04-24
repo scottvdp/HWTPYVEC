@@ -16,153 +16,43 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
-"""Converting 2d vector art to 3d models.
-
-This is a generic converter, with a sample output
-to .obj format.
+"""Manipulations of Models.
 """
 
 __author__ = "howard.trickey@gmail.com"
 
 from . import geom
-from . import vecfile
-from . import art2polyarea
 from . import triquad
 from . import offset
 import math
 
-class Model(object):
-  """Contains a generic 3d model.
 
-  A generic 3d model has vertices with 3d coordinates.
-  Each vertex gets a 'vertex id', which is an index that
-  can be used to refer to the vertex and can be used
-  to retrieve the 3d coordinates of the point.
-
-  The actual visible part of the geometry are the faces,
-  which are n-gons (n>2), specified by a vector of the
-  n corner vertices.
-  Faces may also have colors.
-
-  Attributes:
-    points: geom.Points - the 3d vertices
-    faces: list of list of indices (each a CCW traversal of a face)
-    colors: list of (float, float, float) - if present, is parallel to 
-        faces list and gives rgb colors of faces
-  """
-
-  def __init__(self):
-    self.points = geom.Points()
-    self.faces = []
-    self.colors = []
-
-  def writeObjFile(self, fname):
-    """Write the model as a .obj format file.
-
-    Args:
-      fname: filename to write to
-    """
-
-    f = open(fname, "w")
-    for i in range(0, len(self.points.pos)):
-      f.write("v %f %f %f\n" % tuple(self.points.pos[i]))
-    for face in self.faces:
-      f.write("f")
-      for v in face:
-        f.write(" %d" % (v+1))  # .obj vertices start at 1
-      f.write("\n")
-    f.close()
-
-class ImportOptions(object):
-  """Contains options used to control model import.
-
-  Attributes:
-    quadrangulate: bool - should n-gons be quadrangulated?
-    convert_options: art2polyarea.ConvertOptions -
-      options about how to convert vector files into
-      polygonal areas
-    scaled_side_target: float - scale model so that longest side
-      is this length, if > 0.
-    extrude_depth: float - if > 0, extrude polygons up by this amount
-    bevel_amount: float - if > 0, inset polygons by this amount
-    bevel_pitch: float - if > 0, angle in radians of bevel
-    cap_back: bool - should we cap the back, if extruding?
-  """
-
-  def __init__(self):
-    self.quadrangulate = True
-    self.convert_options = art2polyarea.ConvertOptions()
-    self.scaled_side_target = 4.0
-    self.extrude_depth = 0.0
-    self.bevel_amount = 0.0
-    self.bevel_pitch = 45.0 * math.pi / 180.0
-    self.cap_back = False
-
-
-def ReadVecFileToModel(fname, options):
-  """Read vector art file and convert to Model.
-
-  Args:
-    fname: string - the file to read
-    options: ImportOptions - specifies some choices about import
-  Returns:
-    (Model, string): if there was a major problem, Model may be None.
-      The string will be errors and warnings.
-  """
-
-  art = vecfile.ParseVecFile(fname)
-  if art is None:
-    return (None, "Problem reading file or unhandled type")
-  return ArtToModel(art, options)
-
-
-def ArtToModel(art, options):
-  """Convert an Art object into a Model object.
-
-  Args:
-    art: geom.Art - the Art object to convert.
-    options: ImportOptions - specifies some choices about import
-  Returns:
-    (Model, string): if there was a major problem, Model may be None.
-      The string will be errors and warnings.
-  """
-
-  pareas = art2polyarea.ArtToPolyAreas(art, options.convert_options)
-  if not pareas:
-    return (None, "No visible faces found")
-  model = PolyAreasToModel(pareas, options)
-  return (model, "")
-
-
-def PolyAreasToModel(polyareas, options):
+def PolyAreasToModel(polyareas, bevel_amount, bevel_pitch, quadrangulate):
   """Convert a PolyAreas into a Model object.
   
   Args:
     polyareas: geom.PolyAreas
-    options: ImportOptions
+    bevel_amount: float - if > 0, amount of bevel
+    bevel_pitch: float - if > 0, angle in radians of bevel
+    quadrangulate: bool - should n-gons be quadrangulated?
   Returns:
-    Model
+    geom.Model
   """
 
-  m = Model()
+  m = geom.Model()
   if not polyareas:
     return m
-  if options.scaled_side_target > 0:
-    polyareas.scale_and_center(options.scaled_side_target)
   polyareas.points.AddZCoord(0.0)
   m.points = polyareas.points
   for pa in polyareas.polyareas:
-    _PolyAreaToModel(m, pa, options)
-  if options.extrude_depth > 0:
-    ExtrudePolyAreasInModel(m, polyareas, options.extrude_depth,
-      options.cap_back)
+    PolyAreaToModel(m, pa, bevel_amount, bevel_pitch, quadrangulate)
   return m
 
 
-def _PolyAreaToModel(m, pa, options):
-  if options.bevel_amount > 0.0:
-    BevelPolyAreaInModel(m, pa, options)
-  elif options.quadrangulate:
+def PolyAreaToModel(m, pa, bevel_amount, bevel_pitch, quadrangulate):
+  if bevel_amount > 0.0:
+    BevelPolyAreaInModel(m, pa, bevel_amount, bevel_pitch, quadrangulate)
+  elif quadrangulate:
     if len(pa.poly) == 0:
       return
     qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
@@ -177,7 +67,7 @@ def ExtrudePolyAreasInModel(model, polyareas, depth, cap_back):
   """Extrude the boundaries given by polyareas by -depth in z.
 
   Arguments:
-    model: Model - where to do extrusion
+    model: geom.Model - where to do extrusion
     polyareas: geom.Polyareas
     depth: float
     cap_back: bool - if True, cap off the back
@@ -245,7 +135,8 @@ def _ExtrudePoly(model, poly, depth, color, isccw):
   return extruded_poly
 
 
-def BevelPolyAreaInModel(model, polyarea, options):
+def BevelPolyAreaInModel(model, polyarea,
+    bevel_amount, bevel_pitch, quadrangulate):
   """Bevel the interior of polyarea in model.
 
   This does smart beveling: advancing edges are merged
@@ -255,9 +146,11 @@ def BevelPolyAreaInModel(model, polyarea, options):
   For now, assume that area is on an xy plane. (TODO: fix)
 
   Arguments:
-    model: Model - where to do bevel
+    geom.model: Model - where to do bevel
     polyarea geom.PolyArea - area to bevel into
-    options: ImportOptions
+    bevel_amount: float - if > 0, amount of bevel
+    bevel_pitch: float - if > 0, angle in radians of bevel
+    quadrangulate: bool - should n-gons be quadrangulated?
   Side Effects:
     Faces and points are added to model to model the
     bevel and the interior of the polyareas.
@@ -265,12 +158,12 @@ def BevelPolyAreaInModel(model, polyarea, options):
     deleted (TODO).
   """
 
-  vspeed = math.tan(options.bevel_pitch)
+  vspeed = math.tan(bevel_pitch)
   off = offset.Offset(polyarea, 0.0)
-  off.Build(options.bevel_amount)
+  off.Build(bevel_amount)
   inner_pas = AddOffsetFacesToModel(model, off, vspeed, polyarea.color)
   for pa in inner_pas.polyareas:
-    if options.quadrangulate:
+    if quadrangulate:
       if len(pa.poly) == 0:
         continue
       qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)

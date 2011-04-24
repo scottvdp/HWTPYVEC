@@ -96,14 +96,12 @@ class Inset(bpy.types.Operator):
 def do_inset(mesh, amount, height):
   if amount <= 0.0:
     return
-  opt = model.ImportOptions()
-  opt.bevel_amount = amount
-  opt.bevel_pitch = math.atan(height / amount)
+  pitch = math.atan(height / amount)
   faces = []
   for face in mesh.faces:
     if face.select and not face.hide:
       faces.append(face)
-  m = model.Model()
+  m = geom.Model()
   # if add all mesh.vertices, coord indices will line up
   for v in mesh.vertices:
     k = m.points.AddPoint(v.co.to_tuple())
@@ -111,9 +109,8 @@ def do_inset(mesh, amount, height):
     f = faces[0]
     fverts = list(f.vertices)  # indices into mesh.vertices
     m.faces.append(fverts)
-    print("m.faces", m.faces)
     pa = geom.PolyArea(m.points, fverts)
-    model.BevelPolyAreaInModel(m, pa, opt)
+    model.BevelPolyAreaInModel(m, pa, amount, pitch, True)
     # make sure faces don't end in index 0
     for i, newf in enumerate(m.faces):
       if newf[-1] == 0:
