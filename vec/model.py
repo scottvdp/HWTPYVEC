@@ -63,11 +63,11 @@ def PolyAreaToModel(m, pa, bevel_amount, bevel_pitch, quadrangulate):
     m.colors.append(pa.color)
 
 
-def ExtrudePolyAreasInModel(model, polyareas, depth, cap_back):
+def ExtrudePolyAreasInModel(mdl, polyareas, depth, cap_back):
   """Extrude the boundaries given by polyareas by -depth in z.
 
   Arguments:
-    model: geom.Model - where to do extrusion
+    mdl: geom.Model - where to do extrusion
     polyareas: geom.Polyareas
     depth: float
     cap_back: bool - if True, cap off the back
@@ -78,10 +78,10 @@ def ExtrudePolyAreasInModel(model, polyareas, depth, cap_back):
   """
 
   for pa in polyareas.polyareas:
-    back_poly = _ExtrudePoly(model, pa.poly, depth, pa.color, True)
+    back_poly = _ExtrudePoly(mdl, pa.poly, depth, pa.color, True)
     back_holes = []
     for p in pa.holes:
-      back_holes.append(_ExtrudePoly(model, p, depth, pa.color, False))
+      back_holes.append(_ExtrudePoly(mdl, p, depth, pa.color, False))
     if cap_back:
       qpa = triquad.QuadrangulateFaceWithHoles(back_poly, back_holes,
         polyareas.points)
@@ -94,11 +94,11 @@ def ExtrudePolyAreasInModel(model, polyareas, depth, cap_back):
       model.colors.extend([pa.color] * len(qpa))
 
 
-def _ExtrudePoly(model, poly, depth, color, isccw):
+def _ExtrudePoly(mdl, poly, depth, color, isccw):
   """Extrude the poly by -depth in z
 
   Arguments:
-    model: Model - where to do extrusion
+    mdl: geom.Model - where to do extrusion
     poly: list of vertex indices
     depth: float
     color: tuple of three floats
@@ -114,7 +114,7 @@ def _ExtrudePoly(model, poly, depth, color, isccw):
   if len(poly) < 2:
     return
   extruded_poly = []
-  points = model.points
+  points = mdl.points
   if isccw:
     incr = 1
   else:
@@ -129,13 +129,13 @@ def _ExtrudePoly(model, poly, depth, color, isccw):
       sideface = [v, vextrude, vnextextrude, vnext]
     else:
       sideface = [v, vnext, vnextextrude, vextrude]
-    model.faces.append(sideface)
-    model.colors.append(color)
+    mdl.faces.append(sideface)
+    mdl.colors.append(color)
     extruded_poly.append(vextrude)
   return extruded_poly
 
 
-def BevelPolyAreaInModel(model, polyarea,
+def BevelPolyAreaInModel(mdl, polyarea,
     bevel_amount, bevel_pitch, quadrangulate):
   """Bevel the interior of polyarea in model.
 
@@ -146,7 +146,7 @@ def BevelPolyAreaInModel(model, polyarea,
   For now, assume that area is on an xy plane. (TODO: fix)
 
   Arguments:
-    geom.model: Model - where to do bevel
+    mdl: geom.Model - where to do bevel
     polyarea geom.PolyArea - area to bevel into
     bevel_amount: float - if > 0, amount of bevel
     bevel_pitch: float - if > 0, angle in radians of bevel
@@ -154,33 +154,31 @@ def BevelPolyAreaInModel(model, polyarea,
   Side Effects:
     Faces and points are added to model to model the
     bevel and the interior of the polyareas.
-    Any faces that currently filled those areas are
-    deleted (TODO).
   """
 
   vspeed = math.tan(bevel_pitch)
   off = offset.Offset(polyarea, 0.0)
   off.Build(bevel_amount)
-  inner_pas = AddOffsetFacesToModel(model, off, vspeed, polyarea.color)
+  inner_pas = AddOffsetFacesToModel(mdl, off, vspeed, polyarea.color)
   for pa in inner_pas.polyareas:
     if quadrangulate:
       if len(pa.poly) == 0:
         continue
       qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
-      model.faces.extend(qpa)
-      model.colors.extend([ pa.color ] * len(qpa))
+      mdl.faces.extend(qpa)
+      mdl.colors.extend([ pa.color ] * len(qpa))
     else:
-      model.faces.append(pa.poly)
-      model.colors.append(pa.color)
+      mdl.faces.append(pa.poly)
+      mdl.colors.append(pa.color)
 
 
-def AddOffsetFacesToModel(m, off, vspeed, color = (0.0, 0.0, 0.0)):
+def AddOffsetFacesToModel(mdl, off, vspeed, color = (0.0, 0.0, 0.0)):
   """Add the faces due to an offset into model.
 
   Returns the remaining interiors of the offset as a PolyAreas.
 
   Args:
-    m: model to add offset faces into
+    mdl: geom.Model - model to add offset faces into
     off: offset.Offset
     vspeed: float - vertical speed - how fast height grows with time
     color: (float, float, float) - color to make the faces
@@ -188,8 +186,8 @@ def AddOffsetFacesToModel(m, off, vspeed, color = (0.0, 0.0, 0.0)):
     geom.PolyAreas
   """
 
-  m.points = off.polyarea.points
-  assert(len(m.points.pos) == 0 or len(m.points.pos[0]) == 3)
+  mdl.points = off.polyarea.points
+  assert(len(mdl.points.pos) == 0 or len(mdl.points.pos[0]) == 3)
   o = off
   ostack = [ ]
   while o:
@@ -205,18 +203,102 @@ def AddOffsetFacesToModel(m, off, vspeed, color = (0.0, 0.0, 0.0)):
           v2 = nextspoke.dest
           v3 = spoke.dest
           for v in [v0, v1]:
-            m.points.ChangeZCoord(v, zouter)
+            mdl.points.ChangeZCoord(v, zouter)
           for v in [v2, v3]:
-            m.points.ChangeZCoord(v, zinner)
+            mdl.points.ChangeZCoord(v, zinner)
           if v2 == v3:
             mface = [v0, v1, v2]
           else:
             mface = [v0, v1, v2, v3]
-          m.faces.append(mface)
-          m.colors.append(color)
+          mdl.faces.append(mface)
+          mdl.colors.append(color)
     ostack.extend(o.inneroffsets)
     if ostack:
       o = ostack.pop()
     else:
       o = None
   return off.InnerPolyAreas()
+
+
+def BevelSelectionInModel(mdl, selected_faces,
+    bevel_amount, bevel_pitch, quadrangulate, as_region):
+  """Bevel the selected faces in the model.
+
+  If as_region is False, each face is beveled individually,
+  otherwise regions of contiguous faces are merged into
+  PolyAreas and beveled as a whole.
+
+  TODO: something if extracted PolyAreas are not approximately
+  planar.
+
+  Args:
+    mdl: geom.Model
+    bevel_amount: float - amount to inset
+    bevel_pitch: float - angle of bevel side
+    quadrangulate: bool - should insides be quadrangulated?
+    as_region: bool - should faces be merged into regions?
+  Side effect:
+    Beveling faces will be added to the model
+  """
+
+  pas = []
+  if as_region:
+    pas = RegionToPolyAreas(selected_faces, mdl.points)
+  else:
+    for face in selected_faces:
+      pas.append(geom.PolyArea(mdl.points, face))
+  for pa in pas:
+    BevelPolyAreaInModel(mdl, pa,
+        bevel_amount, bevel_pitch, quadrangulate)
+
+
+def RegionToPolyAreas(faces, points):
+  """Find polygonal outlines induced by union of faces.
+
+  Finds the polygons formed by boundary edges (those not
+  sharing an edge with another face in region_faces), and
+  turns those into PolyAreas.
+  In the general case, there will be holes inside.
+
+  Args:
+    faces: list of list of int - each sublist is a face (indices into points)
+    points: geom.Points - gives coordinates for vertices
+  Returns:
+    list of geom.PolyArea
+  """
+
+  nv = len(points.pos)
+  edges = []  # will be pairs of (start vertex, end vertex)
+  # make vtoedges - maps vertex index to a list of edges
+  # starting with that vertex
+  vtoedges = [ [] for i in range(nv) ]
+  for f in faces:
+    nf = len(f)
+    for i, v in enumerate(f):
+      endv = f[(i+1) % nf]
+      edge = (v, endv)
+      # don't put an edge in twice
+      if edge in vtoedges[v]:
+        continue
+      edges.append(edge)
+      vtoedges[v].append(edge)
+  # boundary edges are those whose reverse does not also appear
+  boundary_edges = set()
+  vtobedges = [ [] for i in range(nv) ]
+  for edge in edges:
+    (vs, ve) = edge
+    if (ve, vs) not in vtoedges[v]:
+      boundary_edges.add(edge)
+      vtobedges[vs].append(edge)
+  # now construct boundary polygons by matching up the edges
+  # and forming simple cycles
+  polys = []
+  while boundary_edges:
+    # pick a seed edge from remaining boundary edges
+    edge = boundary_edges.pop()
+    (vs, ve) = edge
+    poly = [vs, ve]
+    # should be exactly one edge connected to ve
+    outs = vtobedges[ve]
+    if len(outs) != 1:
+      print("whoops, something funny here", vs, ve, outs)
