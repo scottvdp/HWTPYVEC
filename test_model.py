@@ -7,7 +7,7 @@ from vec import geom
 from vec import offset
 from vec import showfaces
 
-SHOW = True  # should we show graphic plots of tested files?
+SHOW = False  # should we show graphic plots of tested files?
 
 class AddOffsetFacesToModel(unittest.TestCase):
 
@@ -38,6 +38,24 @@ class AddOffsetFacesToModel(unittest.TestCase):
     model.AddOffsetFacesToModel(m, o, 1.0)
     if SHOW:
       showfaces.ShowFaces(m.faces, m.points, "Irreg")
+
+def GridPoints(cols, rows):
+  points = geom.Points()
+  for x in range(cols):
+    for y in range(rows):
+      points.AddPoint((float(x), float(y), 0.0))
+  return points
+
+class TestRegionToPolyAreas(unittest.TestCase):
+
+  def testTwoConnected(self):
+    # two squares, side by side sharing a vertical edge
+    points = GridPoints(3, 2)
+    faces = [ (0, 1, 4, 3), (1, 2, 5, 4) ]
+    pas = model.RegionToPolyAreas(faces, points)
+    self.assertEqual(len(pas), 1)
+    self.assertEqual(pas[0].poly, [0, 1, 2, 5, 4, 3])
+
 
 if __name__ == "__main__":
   unittest.main()

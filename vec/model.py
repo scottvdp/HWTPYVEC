@@ -267,38 +267,141 @@ def RegionToPolyAreas(faces, points):
     list of geom.PolyArea
   """
 
-  nv = len(points.pos)
-  edges = []  # will be pairs of (start vertex, end vertex)
-  # make vtoedges - maps vertex index to a list of edges
-  # starting with that vertex
-  vtoedges = [ [] for i in range(nv) ]
-  for f in faces:
+  ans = []
+  (edges, vtoe) = _GetEdgeData(faces)
+  print("edges=", edges)
+  print("vtoe=", vtoe)
+  (face_adj, is_interior_edge) = _GetFaceGraph(faces, edges, vtoe, points)
+  print("face_adj=", face_adj)
+  print("is_interior_edge=", is_interior_edge)
+  (components, ftoc) = _FindFaceGraphComponents(faces, face_adj)
+  print("components=", components)
+  print("ftoc=", ftoc)
+  for c in range(len(components)):
+    boundary_edges = set()
+    vstobe = dict()
+    for e, ((vs, ve), f) in enumerate(edges):
+      if ftoc[f] != c or is_interior_edge[e]:
+        continue
+      boundary_edges.add(e)
+      vstobe[vs] = e
+    polys = []
+    print("boundary edges for component", c, "=", boundary_edges)
+    while boundary_edges:
+      e = boundary_edges.pop()
+      ((vstart, ve), _) = edges[e]
+      poly = [ vstart, ve ]
+      while ve != vstart:
+        if ve not in vstobe:
+          print("whoops, couldn't close boundary")
+          break
+        nexte = vstobe[ve]
+        ((_, ve), _) = edges[nexte]
+        boundary_edges.remove(nexte)
+        if ve != vstart:
+          poly.append(ve)
+      polys.append(poly)
+    print("polys for component", c, "=", polys)
+    if len(polys) == 1:
+      ans.append(geom.PolyArea(points, polys[0]))
+    else:
+      print("TODO: find the holes")
+  return ans
+
+
+def _GetEdgeData(faces):
+  """Find edges from faces, and some lookup dictionaries.
+
+  Args:
+    faces: list of list of int - each a closed CCW polygon of vertex indices
+  Returns:
+    (list of ((int, int), int), dict{ int->list of int}) -
+      list elements are ((startv, endv), face index)
+      dict maps vertices to edge indices
+  """
+
+  edges = []
+  vtoe = dict()
+  for findex, f in enumerate(faces):
     nf = len(f)
     for i, v in enumerate(f):
       endv = f[(i+1) % nf]
-      edge = (v, endv)
-      # don't put an edge in twice
-      if edge in vtoedges[v]:
-        continue
-      edges.append(edge)
-      vtoedges[v].append(edge)
-  # boundary edges are those whose reverse does not also appear
-  boundary_edges = set()
-  vtobedges = [ [] for i in range(nv) ]
-  for edge in edges:
-    (vs, ve) = edge
-    if (ve, vs) not in vtoedges[v]:
-      boundary_edges.add(edge)
-      vtobedges[vs].append(edge)
-  # now construct boundary polygons by matching up the edges
-  # and forming simple cycles
-  polys = []
-  while boundary_edges:
-    # pick a seed edge from remaining boundary edges
-    edge = boundary_edges.pop()
-    (vs, ve) = edge
-    poly = [vs, ve]
-    # should be exactly one edge connected to ve
-    outs = vtobedges[ve]
-    if len(outs) != 1:
-      print("whoops, something funny here", vs, ve, outs)
+      edges.append(((v, endv), findex))
+      eindex = len(edges)-1
+      if eindex in vtoe:
+        vtoe[v].append(eindex)
+      else:
+        vtoe[v] = [ eindex ]
+  return (edges, vtoe)
+
+
+def _GetFaceGraph(faces, edges, vtoe, points):
+  """Find the face adjacency graph.
+
+  Faces are adjacent if they share an edge,
+  and the shared edge goes in the reverse direction,
+  and if the angle between them isn't too large.
+
+  Args:
+    faces: list of list of int
+    edges: list of ((int, int), int) - see _GetEdgeData
+    vtoe: dict{ int->list of int } - see _GetEdgeData
+    points: geom.Points
+  Returns:
+    (list of  list of int, list of bool) -
+      first list: each sublist is adjacent face indices for each face
+      second list: maps edge index to True if it separates adjacent faces
+  """
+
+  face_adj = [ [] for i in range(len(faces)) ]
+  is_interior_edge = [ False ] * len(edges)
+  for e, ((vs, ve), f) in enumerate(edges):
+    for othere in vtoe[ve]:
+      ((_, we), g) = edges[othere]
+      if we == vs:
+        # face g is adjacent to face f
+        # TODO: angle check
+        if g not in face_adj[f]:
+          face_adj[f].append(g)
+          is_interior_edge[e] = True
+        # Don't bother with mirror relations, will catch later
+  return (face_adj, is_interior_edge)
+
+
+def _FindFaceGraphComponents(faces, face_adj):
+  """Partition faces into connected components.
+
+  Args:
+    faces: list of list of int
+    face_adj: list of list of int - see _GetFaceGraph
+  Returns:
+    (list of list of int, list of int) -
+      first list partitions face indices into separate lists, each a component
+      second list maps face indices into their component index
+  """
+
+  if not faces:
+    return ([], [])
+  components = []
+  ftoc = [ -1 ] * len(faces)
+  for i in range(len(faces)):
+    if ftoc[i] == -1:
+      compi = len(components)
+      comp = []
+      _FFGCSearch(i, faces, face_adj, ftoc, compi, comp)
+      components.append(comp)
+  return (components, ftoc)
+
+
+def _FFGCSearch(findex, faces, face_adj, ftoc, compi, comp):
+  """Depth first search helper function for _FindFaceGraphComponents
+
+  Searches recursively through all faces connected to findex, adding
+  each face found to comp and setting ftoc for that face to compi.
+  """
+
+  comp.append(findex)
+  ftoc[findex] = compi
+  for otherf in face_adj[findex]:
+    if ftoc[otherf] == -1:
+      _FFGCSearch(otherf, faces, face_adj, ftoc, compi, comp)
