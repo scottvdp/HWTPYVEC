@@ -51,10 +51,44 @@ class TestRegionToPolyAreas(unittest.TestCase):
   def testTwoConnected(self):
     # two squares, side by side sharing a vertical edge
     points = GridPoints(3, 2)
-    faces = [ (0, 1, 4, 3), (1, 2, 5, 4) ]
+    faces = [ [0, 1, 4, 3], [1, 2, 5, 4] ]
     pas = model.RegionToPolyAreas(faces, points)
     self.assertEqual(len(pas), 1)
     self.assertEqual(pas[0].poly, [0, 1, 2, 5, 4, 3])
+
+  def testtwoDisconnected(self):
+    points = GridPoints(4, 2)
+    faces = [ [0, 1, 5, 4], [2, 3, 7, 6] ]
+    pas = model.RegionToPolyAreas(faces, points)
+    self.assertEqual(len(pas), 2)
+
+  def testCross(self):
+    points = GridPoints(4, 4)
+    faces = [ [1, 2, 6, 5],
+      [4, 5, 9, 8], [5, 6, 10, 9], [6, 7, 11, 10],
+      [9, 10, 14, 13] ]
+    pas = model.RegionToPolyAreas(faces, points)
+    self.assertEqual(len(pas), 1)
+    self.assertEqual(pas[0].poly,
+      [1, 2, 6, 7, 11, 10, 14, 13, 9, 8, 4, 5])
+
+  def testTouch(self):
+    points = GridPoints(3, 3)
+    faces = [ [0, 1, 4, 3], [4, 5, 8, 7] ]
+    pas = model.RegionToPolyAreas(faces, points)
+    self.assertEqual(len(pas), 2)
+
+  def testHole(self):
+    points = GridPoints(4, 4)
+    faces = [ [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6],
+      [4, 5, 9, 8], [6, 7, 11, 10],
+      [8, 9, 13, 12], [9, 10, 14, 13], [10, 11, 15, 14]]
+    pas = model.RegionToPolyAreas(faces, points)
+    self.assertEqual(len(pas), 1)
+    self.assertEqual(pas[0].poly,
+      [0, 1, 2, 3, 7, 11, 15, 14, 13, 12, 8, 4])
+    self.assertEqual(len(pas[0].holes), 1)
+    self.assertEqual(pas[0].holes[0], [6, 5, 9, 10])
 
 
 if __name__ == "__main__":

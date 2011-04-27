@@ -269,14 +269,8 @@ def RegionToPolyAreas(faces, points):
 
   ans = []
   (edges, vtoe) = _GetEdgeData(faces)
-  print("edges=", edges)
-  print("vtoe=", vtoe)
   (face_adj, is_interior_edge) = _GetFaceGraph(faces, edges, vtoe, points)
-  print("face_adj=", face_adj)
-  print("is_interior_edge=", is_interior_edge)
   (components, ftoc) = _FindFaceGraphComponents(faces, face_adj)
-  print("components=", components)
-  print("ftoc=", ftoc)
   for c in range(len(components)):
     boundary_edges = set()
     vstobe = dict()
@@ -286,7 +280,6 @@ def RegionToPolyAreas(faces, points):
       boundary_edges.add(e)
       vstobe[vs] = e
     polys = []
-    print("boundary edges for component", c, "=", boundary_edges)
     while boundary_edges:
       e = boundary_edges.pop()
       ((vstart, ve), _) = edges[e]
@@ -301,11 +294,13 @@ def RegionToPolyAreas(faces, points):
         if ve != vstart:
           poly.append(ve)
       polys.append(poly)
-    print("polys for component", c, "=", polys)
     if len(polys) == 1:
       ans.append(geom.PolyArea(points, polys[0]))
     else:
-      print("TODO: find the holes")
+      outerf = _FindOuterPoly(polys, points)
+      pa = geom.PolyArea(points, polys[outerf])
+      pa.holes = [ polys[i] for i in range(len(polys)) if i != outerf ]
+      ans.append(pa)
   return ans
 
 
@@ -328,7 +323,7 @@ def _GetEdgeData(faces):
       endv = f[(i+1) % nf]
       edges.append(((v, endv), findex))
       eindex = len(edges)-1
-      if eindex in vtoe:
+      if v in vtoe:
         vtoe[v].append(eindex)
       else:
         vtoe[v] = [ eindex ]
@@ -405,3 +400,22 @@ def _FFGCSearch(findex, faces, face_adj, ftoc, compi, comp):
   for otherf in face_adj[findex]:
     if ftoc[otherf] == -1:
       _FFGCSearch(otherf, faces, face_adj, ftoc, compi, comp)
+
+def _FindOuterPoly(polys, points):
+  """Assuming polys has one that contains the rest, find that one.
+
+  Args:
+    polys: list of list of int - list of polys given by vertex indices
+    points: geom.Points
+  Returns:
+    int - the index in polys of the outermost one
+  """
+
+  if len(polys) < 2:
+    return 0
+  for i, poly in enumerate(polys):
+    otherpoly = polys[(i+1) % len(polys)]
+    if geom.PointInside(points.pos[otherpoly[0]], poly, points) == 1:
+      return i
+  print("whoops, couldn't find an outermost poly")
+  return 0

@@ -97,45 +97,51 @@ def do_inset(mesh, amount, height):
   if amount <= 0.0:
     return
   pitch = math.atan(height / amount)
-  faces = []
+  selfaces = []
   for face in mesh.faces:
     if face.select and not face.hide:
-      faces.append(face)
+      selfaces.append(face)
   m = geom.Model()
   # if add all mesh.vertices, coord indices will line up
   for v in mesh.vertices:
     k = m.points.AddPoint(v.co.to_tuple())
-  if len(faces) == 1:
-    f = faces[0]
-    fverts = list(f.vertices)  # indices into mesh.vertices
-    m.faces.append(fverts)
-    pa = geom.PolyArea(m.points, fverts)
+  for f in selfaces:
+    m.faces.append(list(f.vertices))
+  orig_numv = len(m.points.pos)
+  orig_numf = len(m.faces)
+  pas = model.RegionToPolyAreas(f.faces, points)
+  for pa in pas:
     model.BevelPolyAreaInModel(m, pa, amount, pitch, True)
-    # make sure faces don't end in index 0
-    for i, newf in enumerate(m.faces):
-      if newf[-1] == 0:
-        if newf[0] == 0:
-          m.faces[i] = [newf[1], newf[2], newf[3], newf[1]]
-        else:
-          m.faces[i] = [newf[-1]] + newf[:-1]
-    start_vertices = len(mesh.vertices)
-    num_new_vertices = len(m.points.pos) - start_vertices
-    mesh.vertices.add(num_new_vertices)
-    for i in range(start_vertices, len(m.points.pos)):
-      mesh.vertices[i].co = mathutils.Vector(m.points.pos[i])
-    start_faces = len(mesh.faces)
-    mesh.faces.add(len(m.faces))
-    for i, newf in enumerate(m.faces):
-      mesh.faces[start_faces + i].vertices_raw = newf
-    mesh.update(calc_edges = True)
-    # remove original face
-    bpy.context.tool_settings.mesh_select_mode = [False, False, True]
-    bpy.ops.object.mode_set(mode = 'EDIT')
-    bpy.ops.mesh.select_all(action = 'DESELECT')
-    bpy.ops.object.mode_set(mode = 'OBJECT')
+  # blender_faces: newfaces but all 4-tuples and no 0
+  # in 4th position if a 4-sided poly
+  blender_faces = []
+  for i in range(orig_numf, len(m.faces)):
+    f = m.faces[i]
+    if len(f) == 3:
+      blender_faces.append(f + [0])
+    elif len(f) == 4:
+      if f[3] == 0:
+        blender_faces.append([f[3], f[0], f[1], f[2]])
+      else:
+        blender_faces.append(f)
+  num_new_vertices = len(m.points.pos) - orig_numv
+  mesh.vertices.add(num_new_vertices)
+  for i in range(orig_numv, len(m.points.pos)):
+    mesh.vertices[i].co = mathutils.Vector(m.points.pos[i])
+  start_faces = len(mesh.faces)
+  mesh.faces.add(len(blender_faces))
+  for i, newf in enumerate(blender_faces):
+    mesh.faces[start_faces + i].vertices_raw = newf
+  mesh.update(calc_edges = True)
+  # remove original faces
+  bpy.context.tool_settings.mesh_select_mode = [False, False, True]
+  bpy.ops.object.mode_set(mode = 'EDIT')
+  bpy.ops.mesh.select_all(action = 'DESELECT')
+  bpy.ops.object.mode_set(mode = 'OBJECT')
+  for f in selfaces:
     f.select = True
-    bpy.ops.object.mode_set(mode = 'EDIT')
-    bpy.ops.mesh.delete(type = 'FACE')
+  bpy.ops.object.mode_set(mode = 'EDIT')
+  bpy.ops.mesh.delete(type = 'FACE')
 
 
 
