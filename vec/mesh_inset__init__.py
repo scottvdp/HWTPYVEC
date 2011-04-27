@@ -54,12 +54,16 @@ class Inset(bpy.types.Operator):
     default = 0.0,
     min = 0.0,
     max = 1000.0,
+    soft_min = 0.0,
+    soft_max = 10.0,
     unit = 'LENGTH')
   inset_height = FloatProperty(name="Height",
     description="Distance to raise inset faces",
     default = 0.0,
     min = -1000.0,
     max = 1000.0,
+    soft_min = -10.0,
+    soft_max = 10.0,
     unit = 'LENGTH')
 
   @classmethod
@@ -98,9 +102,11 @@ def do_inset(mesh, amount, height):
     return
   pitch = math.atan(height / amount)
   selfaces = []
+  selface_indices = []
   for face in mesh.faces:
     if face.select and not face.hide:
       selfaces.append(face)
+      selface_indices.append(face.index)
   m = geom.Model()
   # if add all mesh.vertices, coord indices will line up
   for v in mesh.vertices:
@@ -109,7 +115,7 @@ def do_inset(mesh, amount, height):
     m.faces.append(list(f.vertices))
   orig_numv = len(m.points.pos)
   orig_numf = len(m.faces)
-  pas = model.RegionToPolyAreas(f.faces, points)
+  pas = model.RegionToPolyAreas(m.faces, m.points)
   for pa in pas:
     model.BevelPolyAreaInModel(m, pa, amount, pitch, True)
   # blender_faces: newfaces but all 4-tuples and no 0
@@ -118,7 +124,7 @@ def do_inset(mesh, amount, height):
   for i in range(orig_numf, len(m.faces)):
     f = m.faces[i]
     if len(f) == 3:
-      blender_faces.append(f + [0])
+      blender_faces.append(list(f) + [0])
     elif len(f) == 4:
       if f[3] == 0:
         blender_faces.append([f[3], f[0], f[1], f[2]])
@@ -134,15 +140,16 @@ def do_inset(mesh, amount, height):
     mesh.faces[start_faces + i].vertices_raw = newf
   mesh.update(calc_edges = True)
   # remove original faces
+  bpy.ops.object.mode_set(mode='EDIT')
+  save_select_mode = bpy.context.tool_settings.mesh_select_mode
   bpy.context.tool_settings.mesh_select_mode = [False, False, True]
-  bpy.ops.object.mode_set(mode = 'EDIT')
   bpy.ops.mesh.select_all(action = 'DESELECT')
   bpy.ops.object.mode_set(mode = 'OBJECT')
-  for f in selfaces:
-    f.select = True
+  for fi in selface_indices:
+    mesh.faces[fi].select = True
   bpy.ops.object.mode_set(mode = 'EDIT')
   bpy.ops.mesh.delete(type = 'FACE')
-
+  bpy.context.tool_settings.mesh_select_mode = save_select_mode
 
 
 def panel_func(self, context):
