@@ -233,6 +233,7 @@ def BevelSelectionInModel(mdl, selected_faces,
 
   Args:
     mdl: geom.Model
+    selected_faces: list of list of int
     bevel_amount: float - amount to inset
     bevel_pitch: float - angle of bevel side
     quadrangulate: bool - should insides be quadrangulated?
