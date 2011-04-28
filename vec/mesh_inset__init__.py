@@ -65,6 +65,9 @@ class Inset(bpy.types.Operator):
     soft_min = -10.0,
     soft_max = 10.0,
     unit = 'LENGTH')
+  region = BoolProperty(name="Region",
+    description="Inset selection as one region?",
+    default = True)
 
   @classmethod
   def poll(cls, context):
@@ -77,6 +80,7 @@ class Inset(bpy.types.Operator):
     box.label("Inset Options")
     box.prop(self, "inset_amount")
     box.prop(self, "inset_height")
+    box.prop(self, "region")
 
   def invoke(self, context, event):
     self.action(context)
@@ -92,12 +96,12 @@ class Inset(bpy.types.Operator):
     bpy.ops.object.mode_set(mode='OBJECT')
     obj = bpy.context.active_object
     mesh = obj.data
-    do_inset(mesh, self.inset_amount, self.inset_height)
+    do_inset(mesh, self.inset_amount, self.inset_height, self.region)
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.context.user_preferences.edit.use_global_undo = save_global_undo
 
 
-def do_inset(mesh, amount, height):
+def do_inset(mesh, amount, height, region):
   if amount <= 0.0:
     return
   pitch = math.atan(height / amount)
@@ -109,15 +113,14 @@ def do_inset(mesh, amount, height):
       selface_indices.append(face.index)
   m = geom.Model()
   # if add all mesh.vertices, coord indices will line up
-  for v in mesh.vertices:
-    k = m.points.AddPoint(v.co.to_tuple())
+  # Note: not using Points.AddPoint which does dup elim
+  # because then would have to map vertices in and out
+  m.points.pos = [ v.co.to_tuple() for v in mesh.vertices ]
   for f in selfaces:
     m.faces.append(list(f.vertices))
   orig_numv = len(m.points.pos)
   orig_numf = len(m.faces)
-  pas = model.RegionToPolyAreas(m.faces, m.points)
-  for pa in pas:
-    model.BevelPolyAreaInModel(m, pa, amount, pitch, True)
+  model.BevelSelectionInModel(m, m.faces, amount, pitch, True, region)
   # blender_faces: newfaces but all 4-tuples and no 0
   # in 4th position if a 4-sided poly
   blender_faces = []
