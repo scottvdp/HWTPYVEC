@@ -29,7 +29,9 @@ import math
 
 def PolyAreasToModel(polyareas, bevel_amount, bevel_pitch, quadrangulate):
   """Convert a PolyAreas into a Model object.
-  
+
+  Assumes polyareas are in xy plane.
+
   Args:
     polyareas: geom.PolyAreas
     bevel_amount: float - if > 0, amount of bevel
@@ -60,11 +62,15 @@ def PolyAreaToModel(m, pa, bevel_amount, bevel_pitch, quadrangulate):
     m.colors.extend([ pa.color ] * len(qpa))
   else:
     m.faces.append(pa.poly)
+    # TODO: just the first part of QuadrangulateFaceWithHoles, to join
+    # holes to outer poly
     m.colors.append(pa.color)
 
 
 def ExtrudePolyAreasInModel(mdl, polyareas, depth, cap_back):
   """Extrude the boundaries given by polyareas by -depth in z.
+
+  Assumes polyareas are in xy plane.
 
   Arguments:
     mdl: geom.Model - where to do extrusion
@@ -143,7 +149,8 @@ def BevelPolyAreaInModel(mdl, polyarea,
   rather than doing an 'overlap'.  Advancing edges that
   hit an opposite edge result in a split into two beveled areas.
 
-  For now, assume that area is on an xy plane. (TODO: fix)
+  If the polyarea is not in the xy plane, do the work in a
+  transformed model, and then transfer the changes back.
 
   Arguments:
     mdl: geom.Model - where to do bevel
@@ -156,20 +163,30 @@ def BevelPolyAreaInModel(mdl, polyarea,
     bevel and the interior of the polyareas.
   """
 
+  pa_norm = polyarea.Normal()
+  if pa_norm == (0.0, 0.0, 1.0):
+    m = mdl
+  else:
+    (pa_rot, inv_rot, inv_map) = _RotatedPolyAreaToXY(polyarea, pa_norm)
+    # don't actually have to add the original faces into model, just their points.
+    m = geom.Model()
+    m.points = pa_rot.points
   vspeed = math.tan(bevel_pitch)
   off = offset.Offset(polyarea, 0.0)
   off.Build(bevel_amount)
-  inner_pas = AddOffsetFacesToModel(mdl, off, vspeed, polyarea.color)
+  inner_pas = AddOffsetFacesToModel(m, off, vspeed, polyarea.color)
   for pa in inner_pas.polyareas:
     if quadrangulate:
       if len(pa.poly) == 0:
         continue
       qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
-      mdl.faces.extend(qpa)
-      mdl.colors.extend([ pa.color ] * len(qpa))
+      m.faces.extend(qpa)
+      m.colors.extend([ pa.color ] * len(qpa))
     else:
-      mdl.faces.append(pa.poly)
-      mdl.colors.append(pa.color)
+      m.faces.append(pa.poly)
+      m.colors.append(pa.color)
+  if m != mdl:
+    _AddTransformedPolysToModel(mdl, m.faces, m.points, inv_rot, inv_map)
 
 
 def AddOffsetFacesToModel(mdl, off, vspeed, color = (0.0, 0.0, 0.0)):
@@ -420,3 +437,73 @@ def _FindOuterPoly(polys, points):
       return i
   print("whoops, couldn't find an outermost poly")
   return 0
+
+
+def _RotatedPolyAreaToXY(polyarea, norm):
+  """Return a model with polyarea rotated to xy plane.
+
+  Only the points in polyarea will be transferred.
+
+  Args:
+    polyarea: geom.PolyArea
+    norm: the normal for polyarea
+  Returns:
+    (geom.PolyArea, (float, ..., float), dict{ int -> int }) - new PolyArea,
+        4x3 inverse transform, dict mapping new verts to old ones
+  """
+
+  # find rotation matrix that takes norm to (0,0,1)
+  (nx, ny, nz) = norm
+  if abs(nx) < abs(nx) and abs(nx) < abs(nz):
+    v = (vx, vy, vz) = geom.Norm3(0.0, nz, - ny)
+  elif abs(ny) < abs(nz):
+    v = (vx, vy, vz) = geom.Norm3(nz, 0.0, - nx)
+  else:
+    v = (vx, vy, vz) = geom.Norm3(ny, - nx, 0.0)
+  (ux, uy, uz) = geom.Cross3(v, n)
+  rotmat = [ux, vx, nx, uy, vy, ny, uz, vz, nz, 0.0, 0.0, 0.0]
+  # rotation matrices are orthogonal, so inverse is transpose
+  invrotmat = [ux, uy, uz, vx, vy, vz, nx, ny, nz, 0.0, 0.0, 0.0]
+  pointmap = dict()
+  invpointmap = dict()
+  newpoints = geom.Points()
+  for poly in [polyarea.poly] + polyarea.holes:
+    for v in poly:
+      vcoords = polyarea.pos[v]
+      newvcoords = geom.MulPoint3(vcoords, rotmat)
+      newv = newpoints.AddPoint(newvcoords)
+      pointmap[v] = newv
+      invpointmap[newv] = v
+  pa = geom.PolyArea(newpoints)
+  pa.poly = [ pointmap[v] for v in polyarea.poly ]
+  pa.holes = [ [ pointmap[v] for v in hole ] for hole in polyarea.holes ]
+  return (pa, invrotmat, invpointmap)
+
+
+def _AddTransformedPolysToModel(mdl, polys, points, transform, pointmap):
+  """Add (transformed) the points and faces to a model.
+
+  Add polys to mdl.  The polys have coordinates given by indices into points.pos;
+  those need to be transformed by multiplying by the transform matrix.
+  The vertices may already exist in mdl.  Rather than relying on AddPoint to detect
+  the duplicate (transform rounding error makes that dicey), the pointmap dictionary
+  is used to map vertex indices in polys into those in mdl - if they exist already.
+
+  Args:
+    mdl: geom.Model - where to put new vertices, faces
+    polys: list of list of int - each sublist a poly
+    points: geom.Points - coords for vertices in polys
+    transform: (float, ..., float) - 12-tuple, a 4x3 transform matrix
+    pointmap: dict { int -> int } - maps new vertex indices to old ones
+  Side Effects:
+    The model gets new faces and vertices, based on those in polys.
+    We are allowed to modify pointmap, as it will be discarded after call.
+  """
+
+  for i, coords in enumerate(points.pos):
+    if i not in pointmap:
+      p = geom.MulPoint3(coords, transform)
+      pointmap[i] = mdl.points.AddPoint(p)
+  for poly in polys:
+    mpoly = [ pointmap[v] for v in poly ]
+    m.faces.append(mpoly)

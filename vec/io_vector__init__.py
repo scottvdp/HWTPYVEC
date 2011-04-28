@@ -19,8 +19,8 @@
 bl_info = {
   "name": "Adobe Illustrator / PDF / SVG",
   "author": "Howard Trickey",
-  "version": (0, 7),
-  "blender": (2, 5, 6),
+  "version": (0, 8),
+  "blender": (2, 5, 7),
   "api": 35040,
   "location": "File > Import-Export > Adobe Illustrator/PDF/SVG ",
   "description": "Import Adobe Illustrator, PDF, and SVG",

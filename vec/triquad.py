@@ -942,24 +942,6 @@ def PolygonPlane(face, points):
     return Normal(coords)
 
 
-def RotAndProjectOnXY(n, coords):
-  """Return 2d coordinates that result from rotating coords by the rotation that takes
-  normalized vector n to (0,0,1), and then projecting onto the xy plane."""
-
-  # find rotation matrix that takes n to (0,0,1)
-  (nx, ny, nz) = n
-  if abs(nx) < abs(nx) and abs(nx) < abs(nz):
-    v = (vx, vy, vz) = Norm3(0.0, nz, - ny)
-  elif abs(ny) < abs(nz):
-    v = (vx, vy, vz) = Norm3(nz, 0.0, - nx)
-  else:
-    v = (vx, vy, vz) = Norm3(ny, - nx, 0.0)
-  (ux, uy, uz) = Cross3(v, n)
-  rotmat = [ux, vx, nx, uy, vy, ny, uz, vz, nz, 0.0, 0.0, 0.0]
-  rcoords = [ MulPoint3(p, rotmat) for p in coords ]
-  return [ (x, y) for (x, y, _) in rcoords]
-
-
 # This Normal appears to be on the CCW-traversing side of a polygon
 def Normal(coords):
   """Return an average Normal vector for the point list, 3d coords."""
@@ -1021,16 +1003,6 @@ def Cross3(a, b):
   (ax, ay, az) = a
   (bx, by, bz) = b
   return (ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx)
-
-
-def MulPoint3(p, m):
-  """Return matrix multiplication of p times m
-  where m is a 4x3 matrix and p is a 3d point, extended with 1."""
-
-  (x, y, z) = p
-  return (x * m[0] + y * m[3] + z * m[6] + m[9],
-      x * m[1] + y * m[4] + z * m[7] + m[10],
-      x * m[2] + y * m[5] + z * m[8] + m[11])
 
 
 def Dot2(a, b):

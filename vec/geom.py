@@ -190,6 +190,25 @@ class PolyArea(object):
         return False
     return True
 
+  def Normal(self):
+    """Returns the normal of the polyarea's main poly."""
+
+    pos = self.points.pos
+    poly = self.poly
+    if len(pos) == 0 or len(pos[0]) == 2 or len(poly) == 0:
+      return (0.0, 0.0, 1.0)
+    # very common case: all z-coord values are the same
+    z0 = pos[poly[0]][2]
+    allsame = True
+    for v in poly:
+      if pos[v][2] != z0:
+        allsame = False
+        break
+    if allsame:
+      return (0.0, 0.0, 1.0)
+    else:
+      return Newell(poly, self.points)
+
 
 class PolyAreas(object):
   """Contains a list of PolyAreas and a shared Points.
@@ -623,4 +642,64 @@ def VecLen(a):
   return math.sqrt(s)
 
 
-  
+def Newell(poly, points):
+  """Use Newell method to find polygon normal.
+
+  Assume poly has length at least 3 and points are 3d.
+
+  Args:
+    poly: list of int - indices into points.pos
+    points: Points - assumed 3d
+  Returns:
+    (float, float, float) - the average normal
+  """
+
+  sumx = 0.0
+  sumy = 0.0
+  sumz = 0.0
+  n = len(poly)
+  pos = points.pos
+  for i, ai in enumerate(poly):
+    bi = poly[(i+1) % n]
+    a = pos[ai]
+    b = pos[bi]
+    sumx += (a[1]-b[1]) * (a[2]+b[2])
+    sumy += (a[2]-b[2]) * (a[0]+b[0])
+    sumz += (a[0]-b[0]) * (a[1]+b[1])
+  return Norm3(sumx, sumy, sumz)
+
+
+def Norm3(x, y, z):
+  """Return vector (x,y,z) normalized by dividing by squared length.
+  Return (0.0, 0.0, 1.0) if the result is undefined."""
+  sqrlen = x * x + y * y + z * z
+  if sqrlen < 1e-100:
+    return (0.0, 0.0, 1.0)
+  else:
+    try:
+      d = sqrt(sqrlen)
+      return (x / d, y / d, z / d)
+    except:
+      return (0.0, 0.0, 1.0)
+
+
+# We're using right-hand coord system, where
+# forefinger=x, middle=y, thumb=z on right hand.
+# Then, e.g., (1,0,0) x (0,1,0) = (0,0,1)
+def Cross3(a, b):
+  """Return the cross product of two vectors, a x b."""
+
+  (ax, ay, az) = a
+  (bx, by, bz) = b
+  return (ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx)
+
+
+def MulPoint3(p, m):
+  """Return matrix multiplication of p times m
+  where m is a 4x3 matrix and p is a 3d point, extended with 1."""
+
+  (x, y, z) = p
+  return (x * m[0] + y * m[3] + z * m[6] + m[9],
+      x * m[1] + y * m[4] + z * m[7] + m[10],
+      x * m[2] + y * m[5] + z * m[8] + m[11])
+
