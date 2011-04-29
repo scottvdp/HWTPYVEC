@@ -677,7 +677,7 @@ def Norm3(x, y, z):
     return (0.0, 0.0, 1.0)
   else:
     try:
-      d = sqrt(sqrlen)
+      d = math.sqrt(sqrlen)
       return (x / d, y / d, z / d)
     except:
       return (0.0, 0.0, 1.0)

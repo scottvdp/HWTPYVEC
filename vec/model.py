@@ -440,7 +440,7 @@ def _FindOuterPoly(polys, points):
 
 
 def _RotatedPolyAreaToXY(polyarea, norm):
-  """Return a model with polyarea rotated to xy plane.
+  """Return a  PolyArea rotated to xy plane.
 
   Only the points in polyarea will be transferred.
 

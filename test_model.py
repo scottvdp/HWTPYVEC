@@ -91,5 +91,15 @@ class TestRegionToPolyAreas(unittest.TestCase):
     self.assertEqual(pas[0].holes[0], [6, 5, 9, 10])
 
 
+class TestRotatedPolyAreaToXY(unittest.TestCase):
+
+  def testYZ(self):
+    points = geom.Points([(0.,0.,0.),
+      (0.,1.,0.), (0.,1.,1.),(0.,0.,1.)])
+    pa = geom.PolyArea(points, [0, 1, 2, 3])
+    norm = pa.Normal()
+    self.assertEqual(norm, (1.0, 0.0, 0.0))
+
+
 if __name__ == "__main__":
   unittest.main()
