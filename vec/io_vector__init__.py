@@ -25,8 +25,8 @@ bl_info = {
   "location": "File > Import-Export > Adobe Illustrator/PDF/SVG ",
   "description": "Import Adobe Illustrator, PDF, and SVG",
   "warning": "",
-  "wiki_url": "",
-  "tracker_url": "",
+  "wiki_url": "http://http://wiki.blender.org/index.php/Extensions:2.5/Py/Scripts/Import-Export/AI_PDF_SVG",
+  "tracker_url": "http://http://projects.blender.org/tracker/index.php?func=detail&aid=27246",
   "category": "Import-Export"}
 
 if "bpy" in locals():

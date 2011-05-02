@@ -99,6 +99,8 @@ class TestRotatedPolyAreaToXY(unittest.TestCase):
     pa = geom.PolyArea(points, [0, 1, 2, 3])
     norm = pa.Normal()
     self.assertEqual(norm, (1.0, 0.0, 0.0))
+    (pa, transform, newv2oldv) = model._RotatedPolyAreaToXY(pa, norm)
+    print("pa=", pa.points.pos, pa.poly)
 
 
 if __name__ == "__main__":

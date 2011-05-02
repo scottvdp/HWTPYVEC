@@ -460,7 +460,7 @@ def _RotatedPolyAreaToXY(polyarea, norm):
     v = (vx, vy, vz) = geom.Norm3(nz, 0.0, - nx)
   else:
     v = (vx, vy, vz) = geom.Norm3(ny, - nx, 0.0)
-  (ux, uy, uz) = geom.Cross3(v, n)
+  (ux, uy, uz) = geom.Cross3(v, norm)
   rotmat = [ux, vx, nx, uy, vy, ny, uz, vz, nz, 0.0, 0.0, 0.0]
   # rotation matrices are orthogonal, so inverse is transpose
   invrotmat = [ux, uy, uz, vx, vy, vz, nx, ny, nz, 0.0, 0.0, 0.0]
@@ -469,7 +469,7 @@ def _RotatedPolyAreaToXY(polyarea, norm):
   newpoints = geom.Points()
   for poly in [polyarea.poly] + polyarea.holes:
     for v in poly:
-      vcoords = polyarea.pos[v]
+      vcoords = polyarea.points.pos[v]
       newvcoords = geom.MulPoint3(vcoords, rotmat)
       newv = newpoints.AddPoint(newvcoords)
       pointmap[v] = newv
