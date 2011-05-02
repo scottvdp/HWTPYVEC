@@ -6,6 +6,7 @@ from vec import model
 from vec import geom
 from vec import offset
 from vec import showfaces
+import math
 
 SHOW = False  # should we show graphic plots of tested files?
 
@@ -100,7 +101,50 @@ class TestRotatedPolyAreaToXY(unittest.TestCase):
     norm = pa.Normal()
     self.assertEqual(norm, (1.0, 0.0, 0.0))
     (pa, transform, newv2oldv) = model._RotatedPolyAreaToXY(pa, norm)
-    print("pa=", pa.points.pos, pa.poly)
+    self.assertEqual(pa.points.pos, [(0.0, 0.0, 0.0),
+      (0.0, -1.0, 0.0), (1.0, -1.0, 0.0), (1.0, 0.0, 0.0)])
+    for i in range(4):
+      newc = pa.points.pos[i]
+      oldc = points.pos[newv2oldv[i]]
+      self.assertEqual(geom.MulPoint3(newc, transform), oldc)
+
+
+def Cube():
+  points = geom.Points([
+    (0.,0.,0.), (1.,0.,0.), (1.,1.,0.), (0.,1.,0.),
+    (0.,0.,1.), (1.,0.,1.), (1.,1.,1.), (0.,1.,1.)])
+  faces = [
+    [0, 3, 2, 1],  # bottom (XY plane)
+    [4, 5, 6, 7],  # top (XY plane)
+    [0, 1, 5, 4],  # back (XZ plane)
+    [3, 7, 6, 2],  # front (XZ plane)
+    [1, 2, 6, 5],  # left (YZ plane)
+    [0, 4, 7, 3]   # right (YZ plane)
+    ]
+  m = geom.Model()
+  m.points = points
+  m.faces = faces
+  m.colors = [ (1.,0.,0.) ] * 6
+  return m
+
+
+class TestBevelPolyAreaInModel(unittest.TestCase):
+
+  def testCubeTop(self):
+    m = Cube()
+    pa = geom.PolyArea(m.points, m.faces[1])
+    model.BevelPolyAreaInModel(m, pa, 0.1, math.pi/4., True)
+    self.assertEqual(m.points.pos[8:],
+      [(0.1, 0.1, 1.1), (0.9, 0.1, 1.1), (0.9, 0.9, 1.1), (0.1, 0.9, 1.1)])
+    self.assertEqual(m.faces[6:], [[4, 5, 9, 8], [5, 6, 10, 9],
+      [6, 7, 11, 10], [7, 4, 8, 11], [8, 9, 10, 11]])
+
+  def testCubeBottom(self):
+    m = Cube()
+    pa = geom.PolyArea(m.points, m.faces[0])
+    model.BevelPolyAreaInModel(m, pa, 0.1, math.pi/4., True)
+    print(m.points.pos[8:])
+    print(m.faces[6:])
 
 
 if __name__ == "__main__":

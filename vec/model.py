@@ -164,15 +164,17 @@ def BevelPolyAreaInModel(mdl, polyarea,
   """
 
   pa_norm = polyarea.Normal()
-  if pa_norm == (0.0, 0.0, 1.0):
+  if pa_norm == (0.0, 0.0, 1.0) and \
+      polyarea.points.pos[polyarea.poly[0]][2] == 0.0:
     m = mdl
+    pa_rot = polyarea
   else:
     (pa_rot, inv_rot, inv_map) = _RotatedPolyAreaToXY(polyarea, pa_norm)
     # don't actually have to add the original faces into model, just their points.
     m = geom.Model()
     m.points = pa_rot.points
   vspeed = math.tan(bevel_pitch)
-  off = offset.Offset(polyarea, 0.0)
+  off = offset.Offset(pa_rot, 0.0)
   off.Build(bevel_amount)
   inner_pas = AddOffsetFacesToModel(m, off, vspeed, polyarea.color)
   for pa in inner_pas.polyareas:
@@ -440,7 +442,7 @@ def _FindOuterPoly(polys, points):
 
 
 def _RotatedPolyAreaToXY(polyarea, norm):
-  """Return a  PolyArea rotated to xy plane.
+  """Return a  PolyArea rotated to xy plane, with z=0.
 
   Only the points in polyarea will be transferred.
 
@@ -467,13 +469,22 @@ def _RotatedPolyAreaToXY(polyarea, norm):
   pointmap = dict()
   invpointmap = dict()
   newpoints = geom.Points()
+  sumzs = 0.0
+  numzs = 0
   for poly in [polyarea.poly] + polyarea.holes:
     for v in poly:
       vcoords = polyarea.points.pos[v]
       newvcoords = geom.MulPoint3(vcoords, rotmat)
+      # smash z coord to zero
+      sumzs += newvcoords[2]
+      numzs += 1
+      newvcoords = (newvcoords[0], newvcoords[1], 0.0)
       newv = newpoints.AddPoint(newvcoords)
       pointmap[v] = newv
       invpointmap[newv] = v
+  if numzs:
+    zavg = sumzs / numzs
+    invrotmat[11] = zavg
   pa = geom.PolyArea(newpoints)
   pa.poly = [ pointmap[v] for v in polyarea.poly ]
   pa.holes = [ [ pointmap[v] for v in hole ] for hole in polyarea.holes ]
@@ -506,4 +517,4 @@ def _AddTransformedPolysToModel(mdl, polys, points, transform, pointmap):
       pointmap[i] = mdl.points.AddPoint(p)
   for poly in polys:
     mpoly = [ pointmap[v] for v in poly ]
-    m.faces.append(mpoly)
+    mdl.faces.append(mpoly)
