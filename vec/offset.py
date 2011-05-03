@@ -100,12 +100,13 @@ class Spoke(object):
             self.speed, str(self.dir), \
             self.face, self.index)
 
-  def EndPoint(self, t, points):
+  def EndPoint(self, t, points, vspeed):
     """Return the coordinates of the non-origin point at time t.
 
     Args:
       t: float - time to find end point
-      vmap: list of (float, float) - coordinate map
+      points: geom.Points - coordinate map
+      vspeed: float - speed in z direction
     Returns:
       (float, float, float) - coords of spoke's endpoint at time t
     """
@@ -113,7 +114,7 @@ class Spoke(object):
     p = points.pos[self.origin]
     d = self.dir
     v = self.speed
-    return tuple([ p[i] + v*t*d[i] for i in range(len(p)) ])
+    return (p[0] + v*t*d[0], p[1] + v*t*d[1], p[2] + vspeed*t*d[2])
 
 
   def VertexEvent(self, other, points):
@@ -291,6 +292,10 @@ class OffsetEvent(object):
 class Offset(object):
   """Represents an offset polygonal area, and used to construct one.
 
+  Currently, the polygonal area must lie approximately in the XY plane.
+  As well as growing inwards in that plane, the advancing lines also
+  move in the Z direction at the rate of vspeed.
+
   Attributes:
     polyarea: geom.PolyArea - the area we are offsetting from.
         We share the polyarea.points, and add to it as points in
@@ -302,10 +307,11 @@ class Offset(object):
         event (relative to beginning of this offset), or the amount
         that takes this offset to the end of the total Build time
     timesofar: float - sum of times taken by all containing Offsets
+    vspeed: float - speed that edges move perpendicular to offset plane
     inneroffsets: list of Offset - the offsets that take over after this (inside it)
   """
 
-  def __init__(self, polyarea, time):
+  def __init__(self, polyarea, time, vspeed):
     """Set up initial state of Offset from a polyarea.
 
     Args:
@@ -317,6 +323,7 @@ class Offset(object):
     self.facespokes = []
     self.endtime = 0.0
     self.timesofar = time
+    self.vspeed = vspeed
     self.inneroffsets = []
     self.InitFaceSpokes(polyarea.poly)
     for f in polyarea.holes:
@@ -480,7 +487,7 @@ class Offset(object):
                 pa2.holes.append(hf)
               else:
                 print("whoops, hole in neither poly!")
-          self.inneroffsets = [ Offset(pa, newt), Offset(pa2, newt) ]
+          self.inneroffsets = [ Offset(pa, newt, self.vspeed), Offset(pa2, newt, self.vspeed) ]
         else:
           # A hole was split. New faces just replace the split one.
           pa.poly = newfaces[0]
@@ -497,9 +504,9 @@ class Offset(object):
           # Two holes were joined
           pa.poly = newfaces[0]
           pa.holes = [ f for f in newfaces if f is not None ] + [ newface0 ]
-      self.inneroffsets = [ Offset(pa, newt) ]
+      self.inneroffsets = [ Offset(pa, newt, self.vspeed) ]
       if pa2:
-        self.inneroffsets.append(Offset(pa2, newt))
+        self.inneroffsets.append(Offset(pa2, newt, self.vspeed))
       if nexttarget > TOL:
         for o in self.inneroffsets:
           o.Build(nexttarget)
@@ -523,7 +530,7 @@ class Offset(object):
     points = self.polyarea.points
     for i in range(0, len(f)):
       s = f[i]
-      vcoords = s.EndPoint(t, points)
+      vcoords = s.EndPoint(t, points, self.vspeed)
       v = points.AddPoint(vcoords)
       if newface:
         if v == newface[-1]:
