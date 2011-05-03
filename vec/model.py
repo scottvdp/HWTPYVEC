@@ -222,9 +222,9 @@ def AddOffsetFacesToModel(mdl, off, vspeed, color = (0.0, 0.0, 0.0)):
           v2 = nextspoke.dest
           v3 = spoke.dest
           for v in [v0, v1]:
-            mdl.points.ChangeZCoord(v, zouter)
+            mdl.points.AddToZCoord(v, zouter)
           for v in [v2, v3]:
-            mdl.points.ChangeZCoord(v, zinner)
+            mdl.points.AddToZCoord(v, zinner)
           if v2 == v3:
             mface = [v0, v1, v2]
           else:
@@ -442,7 +442,7 @@ def _FindOuterPoly(polys, points):
 
 
 def _RotatedPolyAreaToXY(polyarea, norm):
-  """Return a  PolyArea rotated to xy plane, with z=0.
+  """Return a  PolyArea rotated to xy plane.
 
   Only the points in polyarea will be transferred.
 
@@ -456,7 +456,7 @@ def _RotatedPolyAreaToXY(polyarea, norm):
 
   # find rotation matrix that takes norm to (0,0,1)
   (nx, ny, nz) = norm
-  if abs(nx) < abs(nx) and abs(nx) < abs(nz):
+  if abs(nx) < abs(ny) and abs(nx) < abs(nz):
     v = (vx, vy, vz) = geom.Norm3(0.0, nz, - ny)
   elif abs(ny) < abs(nz):
     v = (vx, vy, vz) = geom.Norm3(nz, 0.0, - nx)
@@ -469,22 +469,13 @@ def _RotatedPolyAreaToXY(polyarea, norm):
   pointmap = dict()
   invpointmap = dict()
   newpoints = geom.Points()
-  sumzs = 0.0
-  numzs = 0
   for poly in [polyarea.poly] + polyarea.holes:
     for v in poly:
       vcoords = polyarea.points.pos[v]
       newvcoords = geom.MulPoint3(vcoords, rotmat)
-      # smash z coord to zero
-      sumzs += newvcoords[2]
-      numzs += 1
-      newvcoords = (newvcoords[0], newvcoords[1], 0.0)
       newv = newpoints.AddPoint(newvcoords)
       pointmap[v] = newv
       invpointmap[newv] = v
-  if numzs:
-    zavg = sumzs / numzs
-    invrotmat[11] = zavg
   pa = geom.PolyArea(newpoints)
   pa.poly = [ pointmap[v] for v in polyarea.poly ]
   pa.holes = [ [ pointmap[v] for v in hole ] for hole in polyarea.holes ]

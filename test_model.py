@@ -108,11 +108,25 @@ class TestRotatedPolyAreaToXY(unittest.TestCase):
       oldc = points.pos[newv2oldv[i]]
       self.assertEqual(geom.MulPoint3(newc, transform), oldc)
 
+  def testRevXY(self):
+    points = geom.Points([(0.,0.,-1.),
+      (1.,0.,-1.), (1.,1.,-1.), (0.,1.,-1.)])
+    pa = geom.PolyArea(points, [0, 3, 2, 1])
+    norm = pa.Normal()
+    self.assertEqual(norm, (0.0, 0.0, -1.0))
+    (pa, transform, newv2oldv) = model._RotatedPolyAreaToXY(pa, norm)
+    self.assertEqual(pa.points.pos, [(0.0, 0.0, 1.0),
+      (-1.0, 0.0, 1.0), (-1.0, -1.0, 1.0), (0.0, -1.0, 1.0)])
+    for i in range(4):
+      newc = pa.points.pos[i]
+      oldc = points.pos[newv2oldv[i]]
+      self.assertEqual(geom.MulPoint3(newc, transform), oldc)
+
 
 def Cube():
   points = geom.Points([
-    (0.,0.,0.), (1.,0.,0.), (1.,1.,0.), (0.,1.,0.),
-    (0.,0.,1.), (1.,0.,1.), (1.,1.,1.), (0.,1.,1.)])
+    (-1.,-1.,0.), (1.,-1.,0.), (1.,1.,0.), (-1.,1.,0.),
+    (-1.,-1.,1.), (1.,-1.,1.), (1.,1.,1.), (-1.,1.,1.)])
   faces = [
     [0, 3, 2, 1],  # bottom (XY plane)
     [4, 5, 6, 7],  # top (XY plane)
@@ -135,7 +149,7 @@ class TestBevelPolyAreaInModel(unittest.TestCase):
     pa = geom.PolyArea(m.points, m.faces[1])
     model.BevelPolyAreaInModel(m, pa, 0.1, math.pi/4., True)
     self.assertEqual(m.points.pos[8:],
-      [(0.1, 0.1, 1.1), (0.9, 0.1, 1.1), (0.9, 0.9, 1.1), (0.1, 0.9, 1.1)])
+      [(-0.9, -0.9, 1.1), (0.9, -0.9, 1.1), (0.9, 0.9, 1.1), (-0.9, 0.9, 1.1)])
     self.assertEqual(m.faces[6:], [[4, 5, 9, 8], [5, 6, 10, 9],
       [6, 7, 11, 10], [7, 4, 8, 11], [8, 9, 10, 11]])
 
@@ -144,7 +158,8 @@ class TestBevelPolyAreaInModel(unittest.TestCase):
     pa = geom.PolyArea(m.points, m.faces[0])
     model.BevelPolyAreaInModel(m, pa, 0.1, math.pi/4., True)
     print(m.points.pos[8:])
-    print(m.faces[6:])
+    self.assertEqual(len(m.points.pos), 12)
+    self.assertEqual(len(m.faces), 11)
 
 
 if __name__ == "__main__":

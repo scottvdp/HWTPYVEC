@@ -62,7 +62,7 @@ class Spoke(object):
       next: int - index of point after v on boundary (in CCW order)
       face: int - index of face containing this spoke, in containing offset
       index: int - index of this spoke in its face
-      points: geom.Points - maps vertex indices to 2d coords
+      points: geom.Points - maps vertex indices to 3d coords
     """
 
     self.origin = v
@@ -107,14 +107,13 @@ class Spoke(object):
       t: float - time to find end point
       vmap: list of (float, float) - coordinate map
     Returns:
-      (float, float) - coords of spoke's endpoint at time t
+      (float, float, float) - coords of spoke's endpoint at time t
     """
 
     p = points.pos[self.origin]
     d = self.dir
     v = self.speed
     return tuple([ p[i] + v*t*d[i] for i in range(len(p)) ])
-    return ((p[0]+v*t*d[0], p[1]+v*t*d[1]))
 
 
   def VertexEvent(self, other, points):
@@ -300,7 +299,8 @@ class Offset(object):
         (oriented CCW); the faces may mutually interfere.
         These lists are spokes for polyarea.poly + polyarea.holes.
     endtime: float - time when this offset hits its first
-        event (relative to beginning of this offset)
+        event (relative to beginning of this offset), or the amount
+        that takes this offset to the end of the total Build time
     timesofar: float - sum of times taken by all containing Offsets
     inneroffsets: list of Offset - the offsets that take over after this (inside it)
   """
@@ -327,6 +327,13 @@ class Offset(object):
     for i, face in enumerate(self.facespokes):
       ans.append(("<%d>" % i) + str([ str(spoke) for spoke in face ]))
     return '\n'.join(ans)
+
+  def PrintNest(self, indent_level=0):
+    indent = " " * indent_level * 4
+    print(indent + "Offset  timesofar=", self.timesofar, "endtime=", self.endtime)
+    print(indent + " polyarea=", self.polyarea.poly, self.polyarea.holes)
+    for o in self.inneroffsets:
+      o.PrintNest(indent_level+1)
 
   def InitFaceSpokes(self, face_vertices):
     """Initialize the offset representation of a face from vertex list.
@@ -417,7 +424,8 @@ class Offset(object):
           bestevs[0].extend(ve)
           bestevs[1].extend(ee)
     if bestt == 1e100:
-      # shouldn't happen?  but seems to...
+      # could happen if polygon is oriented wrong
+      # or in other special cases
       return
     if abs(bestt) < TOL:
       # seems to be in a loop, so quit

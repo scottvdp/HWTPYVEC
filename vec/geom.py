@@ -122,18 +122,18 @@ class Points(object):
       newinvmap[self.Quantize(newp)] = i
     self.invmap = newinvmap
 
-  def ChangeZCoord(self, i, z):
-    """Change the z-coordinate of point with index i.
+  def AddToZCoord(self, i, delta):
+    """Change the z-coordinate of point with index i to add delta.
 
     Assumes the coordinates are currently 3d.
 
     Args:
       i: int - index of a point
-      z: float - value to change z-coord to
+      delta: float - value to add to z-coord
     """
 
-    (x, y, _) = self.pos[i]
-    self.pos[i] = (x, y, z)
+    (x, y, z) = self.pos[i]
+    self.pos[i] = (x, y, z + delta)
 
 
 class PolyArea(object):
@@ -196,18 +196,9 @@ class PolyArea(object):
     pos = self.points.pos
     poly = self.poly
     if len(pos) == 0 or len(pos[0]) == 2 or len(poly) == 0:
+      print("whoops, not enough info to calculate normal")
       return (0.0, 0.0, 1.0)
-    # very common case: all z-coord values are the same
-    z0 = pos[poly[0]][2]
-    allsame = True
-    for v in poly:
-      if pos[v][2] != z0:
-        allsame = False
-        break
-    if allsame:
-      return (0.0, 0.0, 1.0)
-    else:
-      return Newell(poly, self.points)
+    return Newell(poly, self.points)
 
 
 class PolyAreas(object):
