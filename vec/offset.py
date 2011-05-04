@@ -104,7 +104,7 @@ class Spoke(object):
     """Return the coordinates of the non-origin point at time t.
 
     Args:
-      t: float - time to find end point
+      t: float - time to end of spoke
       points: geom.Points - coordinate map
       vspeed: float - speed in z direction
     Returns:
@@ -114,7 +114,7 @@ class Spoke(object):
     p = points.pos[self.origin]
     d = self.dir
     v = self.speed
-    return (p[0] + v*t*d[0], p[1] + v*t*d[1], p[2] + vspeed*t*d[2])
+    return (p[0] + v*t*d[0], p[1] + v*t*d[1], p[2] + vspeed*t)
 
 
   def VertexEvent(self, other, points):
@@ -521,7 +521,7 @@ class Offset(object):
 
     Args:
       f: list of Spoke - one of self.faces
-      t: float - time
+      t: float - time in this offset
     Returns:
       list of int - indices into self.polyarea.points (which has been extended with new ones)
     """

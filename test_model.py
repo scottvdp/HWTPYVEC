@@ -15,11 +15,11 @@ class AddOffsetFacesToModel(unittest.TestCase):
   def testTri(self):
     pa = geom.PolyArea(geom.Points([(0.0,0.0,0.0),(1.0,0.0,0.0),(0.5,0.25,0.0)]),
         [0, 1, 2 ])
-    o = offset.Offset(pa, 0.0)
+    o = offset.Offset(pa, 0.0, 0.0)
     o.Build()
     m = geom.Model()
     m.points = pa.points
-    model.AddOffsetFacesToModel(m, o, 1.0)
+    model.AddOffsetFacesToModel(m, o)
     if SHOW:
       showfaces.ShowFaces(m.faces, m.points, "Tri")
 
@@ -32,11 +32,11 @@ class AddOffsetFacesToModel(unittest.TestCase):
        (1.1, 1.0, 0.0),
        (-0.1, 1.2, 0.0)]),
        list(range(0,7)))
-    o = offset.Offset(pa, 0.0)
+    o = offset.Offset(pa, 0.0, 0.0)
     o.Build()
     m = geom.Model()
     m.points = pa.points
-    model.AddOffsetFacesToModel(m, o, 1.0)
+    model.AddOffsetFacesToModel(m, o)
     if SHOW:
       showfaces.ShowFaces(m.faces, m.points, "Irreg")
 
@@ -125,7 +125,7 @@ class TestRotatedPolyAreaToXY(unittest.TestCase):
 
 def Cube():
   points = geom.Points([
-    (-1.,-1.,0.), (1.,-1.,0.), (1.,1.,0.), (-1.,1.,0.),
+    (-1.,-1.,-1.), (1.,-1.,-1.), (1.,1.,-1.), (-1.,1.,-1.),
     (-1.,-1.,1.), (1.,-1.,1.), (1.,1.,1.), (-1.,1.,1.)])
   faces = [
     [0, 3, 2, 1],  # bottom (XY plane)
@@ -151,13 +151,12 @@ class TestBevelPolyAreaInModel(unittest.TestCase):
     self.assertEqual(m.points.pos[8:],
       [(-0.9, -0.9, 1.1), (0.9, -0.9, 1.1), (0.9, 0.9, 1.1), (-0.9, 0.9, 1.1)])
     self.assertEqual(m.faces[6:], [[4, 5, 9, 8], [5, 6, 10, 9],
-      [6, 7, 11, 10], [7, 4, 8, 11], [8, 9, 10, 11]])
+      [6, 7, 11, 10], [7, 4, 8, 11], (9, 10, 11, 8)])
 
   def testCubeBottom(self):
     m = Cube()
     pa = geom.PolyArea(m.points, m.faces[0])
     model.BevelPolyAreaInModel(m, pa, 0.1, math.pi/4., True)
-    print(m.points.pos[8:])
     self.assertEqual(len(m.points.pos), 12)
     self.assertEqual(len(m.faces), 11)
 

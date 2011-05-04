@@ -164,8 +164,7 @@ def BevelPolyAreaInModel(mdl, polyarea,
   """
 
   pa_norm = polyarea.Normal()
-  if pa_norm == (0.0, 0.0, 1.0) and \
-      polyarea.points.pos[polyarea.poly[0]][2] == 0.0:
+  if pa_norm == (0.0, 0.0, 1.0):
     m = mdl
     pa_rot = polyarea
   else:
@@ -174,9 +173,9 @@ def BevelPolyAreaInModel(mdl, polyarea,
     m = geom.Model()
     m.points = pa_rot.points
   vspeed = math.tan(bevel_pitch)
-  off = offset.Offset(pa_rot, 0.0)
+  off = offset.Offset(pa_rot, 0.0, vspeed)
   off.Build(bevel_amount)
-  inner_pas = AddOffsetFacesToModel(m, off, vspeed, polyarea.color)
+  inner_pas = AddOffsetFacesToModel(m, off, polyarea.color)
   for pa in inner_pas.polyareas:
     if quadrangulate:
       if len(pa.poly) == 0:
@@ -191,7 +190,7 @@ def BevelPolyAreaInModel(mdl, polyarea,
     _AddTransformedPolysToModel(mdl, m.faces, m.points, inv_rot, inv_map)
 
 
-def AddOffsetFacesToModel(mdl, off, vspeed, color = (0.0, 0.0, 0.0)):
+def AddOffsetFacesToModel(mdl, off, color = (0.0, 0.0, 0.0)):
   """Add the faces due to an offset into model.
 
   Returns the remaining interiors of the offset as a PolyAreas.
@@ -199,7 +198,6 @@ def AddOffsetFacesToModel(mdl, off, vspeed, color = (0.0, 0.0, 0.0)):
   Args:
     mdl: geom.Model - model to add offset faces into
     off: offset.Offset
-    vspeed: float - vertical speed - how fast height grows with time
     color: (float, float, float) - color to make the faces
   Returns:
     geom.PolyAreas
@@ -211,8 +209,6 @@ def AddOffsetFacesToModel(mdl, off, vspeed, color = (0.0, 0.0, 0.0)):
   ostack = [ ]
   while o:
     if o.endtime != 0.0:
-      zouter = o.timesofar * vspeed
-      zinner = zouter + o.endtime * vspeed
       for face in o.facespokes:
         n = len(face)
         for i, spoke in enumerate(face):
@@ -221,10 +217,6 @@ def AddOffsetFacesToModel(mdl, off, vspeed, color = (0.0, 0.0, 0.0)):
           v1 = nextspoke.origin
           v2 = nextspoke.dest
           v3 = spoke.dest
-          for v in [v0, v1]:
-            mdl.points.AddToZCoord(v, zouter)
-          for v in [v2, v3]:
-            mdl.points.AddToZCoord(v, zinner)
           if v2 == v3:
             mface = [v0, v1, v2]
           else:
