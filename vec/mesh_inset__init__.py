@@ -121,6 +121,9 @@ def do_inset(mesh, amount, height, region):
   orig_numv = len(m.points.pos)
   orig_numf = len(m.faces)
   model.BevelSelectionInModel(m, m.faces, amount, pitch, True, region)
+  if len(m.faces) == orig_numf:
+    # something went wrong with Bevel - just treat as no-op
+    return
   # blender_faces: newfaces but all 4-tuples and no 0
   # in 4th position if a 4-sided poly
   blender_faces = []

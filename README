@@ -3,18 +3,17 @@ Python Vector Art Utilities for 3d
 Blender Import AI and PDF Addon
 To install it: 
 
- * Make sure you have a recent build of Blender 2.56 from graphicall.org
-   (build 35333 or later works)
+ * Make sure you have Blender 2.57 or later
  * Find your blender installation's addons directory
-   (something like 2.56/scripts/addons under wherever you installed blender)
+   (something like 2.57/scripts/addons under wherever you installed blender)
    and make an io_vector dir
  * Use the tobl to copy the required files to io_vector (and rename the init file);
    you'll need to edit the script to put the right destination in
  * Start Blender, go to user Preferences, and enable Import-Export: Vector import
 
 To use it:
- * From Blender's File menu, select Import > Vector files (.ai, .pdf)
- * Select an Adobe Illustrator (any version should work) or PDF file
+ * From Blender's File menu, select Import > Vector files (.ai, .pdf, .svg)
+ * Select an Adobe Illustrator (any version should work) or PDF or SVG file
    that contains some shapes
  * Perhaps change some of the Import Options in the tool panel for this addon.  Current options:
    o Smoothness: the bigger the number, the closer the approximation to curves by line segments
@@ -52,4 +51,8 @@ Version history:
 
 
 Blender Inset Polygon Addon
-0.1: (TBD) First version
+
+To install it:
+ * Follow same instructions for import addon, except that the
+   files go into directory called mesh_inset in addons
+0.1: (5/4/11) First version

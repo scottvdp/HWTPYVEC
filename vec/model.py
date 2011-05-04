@@ -306,7 +306,11 @@ def RegionToPolyAreas(faces, points):
         if ve != vstart:
           poly.append(ve)
       polys.append(poly)
-    if len(polys) == 1:
+    if len(polys) == 0:
+      # can happen if an entire closed polytope is given
+      # at least until we do an edge check
+      return []
+    elif len(polys) == 1:
       ans.append(geom.PolyArea(points, polys[0]))
     else:
       outerf = _FindOuterPoly(polys, points)
