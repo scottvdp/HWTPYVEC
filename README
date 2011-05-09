@@ -56,3 +56,6 @@ To install it:
  * Follow same instructions for import addon, except that the
    files go into directory called mesh_inset in addons
 0.1: (5/4/11) First version
+0.2: (5/7/11) Made default amount .05 so it doesn't seem like the button
+   does nothing; made softmax for amount 1 instead of 10, to make the
+   slider less sensitive.  Added wiki and tracker links.

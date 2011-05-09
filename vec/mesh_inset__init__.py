@@ -19,14 +19,14 @@
 bl_info = {
   "name": "Inset Polygon",
   "author": "Howard Trickey",
-  "version": (0, 1),
+  "version": (0, 2),
   "blender": (2, 5, 7),
   "api": 36147,
   "location": "View3D > Tools",
   "description": "Make an inset polygon inside selection.",
   "warning": "",
-  "wiki_url": "",
-  "tracker_url": "",
+  "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.5/Py/Scripts/Modeling/Inset-Polygon",
+  "tracker_url": "http://projects.blender.org/tracker/index.php?func=detail&aid=27290&group_id=153&atid=468",
   "category": "Mesh"}
 
 if "bpy" in locals():
@@ -51,19 +51,19 @@ class Inset(bpy.types.Operator):
 
   inset_amount = FloatProperty(name="Amount",
     description="Distance of inset edges from outer ones",
-    default = 0.0,
+    default = 0.05,
     min = 0.0,
     max = 1000.0,
     soft_min = 0.0,
-    soft_max = 10.0,
+    soft_max = 1.0,
     unit = 'LENGTH')
   inset_height = FloatProperty(name="Height",
     description="Distance to raise inset faces",
     default = 0.0,
     min = -1000.0,
     max = 1000.0,
-    soft_min = -10.0,
-    soft_max = 10.0,
+    soft_min = -1.0,
+    soft_max = 1.0,
     unit = 'LENGTH')
   region = BoolProperty(name="Region",
     description="Inset selection as one region?",
