@@ -179,6 +179,8 @@ class Vector(object):
     def __mul__(self, other):
         if type(other) == type(self):
             return self.dot(other)
+        elif isinstance(other, Matrix):
+            return other.__rmul__(self)
         x = self.x * other
         y = self.y * other
         if self.n == 2:
@@ -384,6 +386,7 @@ class Vector(object):
 
 class Matrix(object):
     """mxn matrices, with m and n each 2, 3, or 4"""
+    # These slot names aren't part of the public api
     __slots__ = "nrows", "ncols", "rows"
 
     def __init__(self, rowtup):
@@ -410,6 +413,7 @@ class Matrix(object):
 
     def __rmul__(self, other):
         """Vector times self multiplication.  Extend vector with 1s if needed"""
+        print("matrix rmul, self=", self, "other=", other)
         a = []
         olen = len(other)
         for i in range(self.ncols):
@@ -421,3 +425,4 @@ class Matrix(object):
                     s += self.rows[j][i]
             a.append(s)
         return Vector(a)
+
