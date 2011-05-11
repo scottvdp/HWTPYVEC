@@ -123,15 +123,15 @@ class Vector(object):
         return self.magnitude >= other.magnitude
 
     def __eq__(self, other):
-        if math.abs(self.x - other.x) > FLOAT_TOL:
+        if abs(self.x - other.x) > FLOAT_TOL:
             return False
-        if math.abs(self.y - other.y) > FLOAT_TOL:
+        if abs(self.y - other.y) > FLOAT_TOL:
             return False
         if self.n > 2:
-            if math.abs(self.z - other.z) > FLOAT_TOL:
+            if abs(self.z - other.z) > FLOAT_TOL:
                 return False
             if self.n > 3:
-                if math.abs(self.w - other.w) > FLOAT_TOL:
+                if abs(self.w - other.w) > FLOAT_TOL:
                     return False
         return True
 
@@ -139,15 +139,15 @@ class Vector(object):
         return not self.__eq__(other)
 
     def __nonzero__(self):
-        if math.abs(self.x) > FLOAT_TOL:
+        if abs(self.x) > FLOAT_TOL:
             return True
-        if math.abs(self.y) > FLOAT_TOL:
+        if abs(self.y) > FLOAT_TOL:
             return True
         if self.n > 2:
-            if math.abs(self.z) > FLOAT_TOL:
+            if abs(self.z) > FLOAT_TOL:
                 return True
             if self.n > 3:
-                if math.abs(self.w) > FLOAT_TOL:
+                if abs(self.w) > FLOAT_TOL:
                     return True
         return False
 
