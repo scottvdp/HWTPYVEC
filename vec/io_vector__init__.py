@@ -171,7 +171,7 @@ class VectorImporter(bpy.types.Operator):
         mesh = bpy.data.meshes.new(objname)
         mesh.from_pydata(verts, [], faces)
         if self.use_colors:
-            add_colors(mesh, mdl.colors)
+            add_colors(mesh, mdl.face_data)
         mesh.update()
         self.num_verts = len(verts)
         self.num_faces = len(faces)

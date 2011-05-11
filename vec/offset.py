@@ -467,7 +467,7 @@ class Offset(object):
         nexttarget = target - self.endtime
         if len(newfaces) > 0:
             pa = geom.PolyArea(points=self.polyarea.points)
-            pa.color = self.polyarea.color
+            pa.data = self.polyarea.data
             newt = self.timesofar + self.endtime
             pa2 = None  # may make another
             if not splitjoin:
@@ -482,7 +482,7 @@ class Offset(object):
                     # which one contains the holes.
                     pa.poly = newface0
                     pa2 = geom.PolyArea(points=self.polyarea.points)
-                    pa2.color = self.polyarea.color
+                    pa2.data = self.polyarea.data
                     pa2.poly = newface1
                     if len(newfaces) > 1:
                         # print("need to allocate holes")
@@ -724,7 +724,7 @@ def _AddInnerAreas(off, polyareas):
                     continue
             if i == 0:
                 newpa.poly = newface
-                newpa.color = off.polyarea.color
+                newpa.data = off.polyarea.data
             else:
                 newpa.holes.append(newface)
         if newpa.poly:

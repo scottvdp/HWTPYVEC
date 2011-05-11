@@ -61,12 +61,12 @@ def PolyAreaToModel(m, pa, bevel_amount, bevel_pitch, quadrangulate):
             return
         qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, pa.points)
         m.faces.extend(qpa)
-        m.colors.extend([pa.color] * len(qpa))
+        m.face_data.extend([pa.data] * len(qpa))
     else:
         m.faces.append(pa.poly)
         # TODO: just the first part of QuadrangulateFaceWithHoles, to join
         # holes to outer poly
-        m.colors.append(pa.color)
+        m.face_data.append(pa.data)
 
 
 def ExtrudePolyAreasInModel(mdl, polyareas, depth, cap_back):
@@ -82,14 +82,15 @@ def ExtrudePolyAreasInModel(mdl, polyareas, depth, cap_back):
     Side Effects:
       For all edges in polys in polyareas, make quads in Model
       extending those edges by depth in the negative z direction.
-      The color will be the color of the face that the edge is part of.
+      The application data will be the data of the face that the edge
+      is part of.
     """
 
     for pa in polyareas.polyareas:
-        back_poly = _ExtrudePoly(mdl, pa.poly, depth, pa.color, True)
+        back_poly = _ExtrudePoly(mdl, pa.poly, depth, pa.data, True)
         back_holes = []
         for p in pa.holes:
-            back_holes.append(_ExtrudePoly(mdl, p, depth, pa.color, False))
+            back_holes.append(_ExtrudePoly(mdl, p, depth, pa.data, False))
         if cap_back:
             qpa = triquad.QuadrangulateFaceWithHoles(back_poly, back_holes,
               polyareas.points)
@@ -98,23 +99,24 @@ def ExtrudePolyAreasInModel(mdl, polyareas, depth, cap_back):
                 t = list(p)
                 t.reverse()
                 qpa[i] = tuple(t)
-            model.faces.extend(qpa)
-            model.colors.extend([pa.color] * len(qpa))
+            mdl.faces.extend(qpa)
+            mdl.face_data.extend([pa.data] * len(qpa))
 
 
-def _ExtrudePoly(mdl, poly, depth, color, isccw):
+def _ExtrudePoly(mdl, poly, depth, data, isccw):
     """Extrude the poly by -depth in z
 
     Arguments:
       mdl: geom.Model - where to do extrusion
       poly: list of vertex indices
       depth: float
-      color: tuple of three floats
+      data: application data
       isccw: True if counter-clockwise
     Side Effects
       For all edges in poly, make quads in Model
       extending those edges by depth in the negative z direction.
-      The color will be the color of the face that the edge is part of.
+      The application data will be the data of the face that the edge
+      is part of.
     Returns:
       list of int - vertices for extruded poly
     """
@@ -138,7 +140,7 @@ def _ExtrudePoly(mdl, poly, depth, color, isccw):
         else:
             sideface = [v, vnext, vnextextrude, vextrude]
         mdl.faces.append(sideface)
-        mdl.colors.append(color)
+        mdl.face_data.append(data)
         extruded_poly.append(vextrude)
     return extruded_poly
 
@@ -177,23 +179,24 @@ def BevelPolyAreaInModel(mdl, polyarea,
     vspeed = math.tan(bevel_pitch)
     off = offset.Offset(pa_rot, 0.0, vspeed)
     off.Build(bevel_amount)
-    inner_pas = AddOffsetFacesToModel(m, off, polyarea.color)
+    inner_pas = AddOffsetFacesToModel(m, off, polyarea.data)
     for pa in inner_pas.polyareas:
         if quadrangulate:
             if len(pa.poly) == 0:
                 continue
-            qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes, \
+            qpa = triquad.QuadrangulateFaceWithHoles(pa.poly, pa.holes,
                 pa.points)
             m.faces.extend(qpa)
-            m.colors.extend([pa.color] * len(qpa))
+            m.face_data.extend([pa.data] * len(qpa))
         else:
             m.faces.append(pa.poly)
-            m.colors.append(pa.color)
+            m.face_data.append(pa.data)
     if m != mdl:
-        _AddTransformedPolysToModel(mdl, m.faces, m.points, inv_rot, inv_map)
+        _AddTransformedPolysToModel(mdl, m.faces, m.points, m.face_data,
+             inv_rot, inv_map)
 
 
-def AddOffsetFacesToModel(mdl, off, color=(0.0, 0.0, 0.0)):
+def AddOffsetFacesToModel(mdl, off, data=None):
     """Add the faces due to an offset into model.
 
     Returns the remaining interiors of the offset as a PolyAreas.
@@ -201,7 +204,7 @@ def AddOffsetFacesToModel(mdl, off, color=(0.0, 0.0, 0.0)):
     Args:
       mdl: geom.Model - model to add offset faces into
       off: offset.Offset
-      color: (float, float, float) - color to make the faces
+      data: any - application data to be copied to the faces
     Returns:
       geom.PolyAreas
     """
@@ -225,7 +228,7 @@ def AddOffsetFacesToModel(mdl, off, color=(0.0, 0.0, 0.0)):
                     else:
                         mface = [v0, v1, v2, v3]
                     mdl.faces.append(mface)
-                    mdl.colors.append(color)
+                    mdl.face_data.append(data)
         ostack.extend(o.inneroffsets)
         if ostack:
             o = ostack.pop()
@@ -234,9 +237,9 @@ def AddOffsetFacesToModel(mdl, off, color=(0.0, 0.0, 0.0)):
     return off.InnerPolyAreas()
 
 
-def BevelSelectionInModel(mdl, selected_faces,
-    bevel_amount, bevel_pitch, quadrangulate, as_region):
-    """Bevel the selected faces in the model.
+def BevelSelectionInModel(mdl, bevel_amount, bevel_pitch, quadrangulate,
+        as_region):
+    """Bevel all the faces in the model, perhaps as one region.
 
     If as_region is False, each face is beveled individually,
     otherwise regions of contiguous faces are merged into
@@ -247,7 +250,6 @@ def BevelSelectionInModel(mdl, selected_faces,
 
     Args:
       mdl: geom.Model
-      selected_faces: list of list of int
       bevel_amount: float - amount to inset
       bevel_pitch: float - angle of bevel side
       quadrangulate: bool - should insides be quadrangulated?
@@ -258,26 +260,31 @@ def BevelSelectionInModel(mdl, selected_faces,
 
     pas = []
     if as_region:
-        pas = RegionToPolyAreas(selected_faces, mdl.points)
+        pas = RegionToPolyAreas(mdl.faces, mdl.points, mdl.face_data)
     else:
-        for face in selected_faces:
-            pas.append(geom.PolyArea(mdl.points, face))
+        for f, face in enumerate(mdl.faces):
+            pas.append(geom.PolyArea(mdl.points, face, [],
+                mdl.face_data[f]))
     for pa in pas:
         BevelPolyAreaInModel(mdl, pa,
             bevel_amount, bevel_pitch, quadrangulate)
 
 
-def RegionToPolyAreas(faces, points):
+def RegionToPolyAreas(faces, points, data):
     """Find polygonal outlines induced by union of faces.
 
     Finds the polygons formed by boundary edges (those not
     sharing an edge with another face in region_faces), and
     turns those into PolyAreas.
     In the general case, there will be holes inside.
+    We want to associate data with the region PolyAreas.
+    Just choose a representative element of data[] when
+    more than one face is combined into a PolyArea.
 
     Args:
       faces: list of list of int - each sublist is a face (indices into points)
       points: geom.Points - gives coordinates for vertices
+      data: list of any - parallel to faces, app data to put in PolyAreas
     Returns:
       list of geom.PolyArea
     """
@@ -288,17 +295,21 @@ def RegionToPolyAreas(faces, points):
     (components, ftoc) = _FindFaceGraphComponents(faces, face_adj)
     for c in range(len(components)):
         boundary_edges = set()
+        betodata = dict()
         vstobe = dict()
         for e, ((vs, ve), f) in enumerate(edges):
             if ftoc[f] != c or is_interior_edge[e]:
                 continue
             boundary_edges.add(e)
             vstobe[vs] = e
+            betodata[(vs, ve)] = data[f]
         polys = []
+        poly_data = []
         while boundary_edges:
             e = boundary_edges.pop()
             ((vstart, ve), _) = edges[e]
             poly = [vstart, ve]
+            datum = betodata[(vstart, ve)]
             while ve != vstart:
                 if ve not in vstobe:
                     print("whoops, couldn't close boundary")
@@ -309,15 +320,16 @@ def RegionToPolyAreas(faces, points):
                 if ve != vstart:
                     poly.append(ve)
             polys.append(poly)
+            poly_data.append(datum)
         if len(polys) == 0:
             # can happen if an entire closed polytope is given
             # at least until we do an edge check
             return []
         elif len(polys) == 1:
-            ans.append(geom.PolyArea(points, polys[0]))
+            ans.append(geom.PolyArea(points, polys[0], [], poly_data[0]))
         else:
             outerf = _FindOuterPoly(polys, points)
-            pa = geom.PolyArea(points, polys[outerf])
+            pa = geom.PolyArea(points, polys[outerf], [], poly_data[outerf])
             pa.holes = [polys[i] for i in range(len(polys)) if i != outerf]
             ans.append(pa)
     return ans
@@ -480,10 +492,12 @@ def _RotatedPolyAreaToXY(polyarea, norm):
     pa = geom.PolyArea(newpoints)
     pa.poly = [pointmap[v] for v in polyarea.poly]
     pa.holes = [[pointmap[v] for v in hole] for hole in polyarea.holes]
+    pa.data = polyarea.data
     return (pa, invrotmat, invpointmap)
 
 
-def _AddTransformedPolysToModel(mdl, polys, points, transform, pointmap):
+def _AddTransformedPolysToModel(mdl, polys, points, poly_data,
+        transform, pointmap):
     """Add (transformed) the points and faces to a model.
 
     Add polys to mdl.  The polys have coordinates given by indices
@@ -498,6 +512,7 @@ def _AddTransformedPolysToModel(mdl, polys, points, transform, pointmap):
       mdl: geom.Model - where to put new vertices, faces
       polys: list of list of int - each sublist a poly
       points: geom.Points - coords for vertices in polys
+      poly_data: list of any - parallel to polys
       transform: (float, ..., float) - 12-tuple, a 4x3 transform matrix
       pointmap: dict { int -> int } - maps new vertex indices to old ones
     Side Effects:
@@ -509,6 +524,7 @@ def _AddTransformedPolysToModel(mdl, polys, points, transform, pointmap):
         if i not in pointmap:
             p = geom.MulPoint3(coords, transform)
             pointmap[i] = mdl.points.AddPoint(p)
-    for poly in polys:
+    for i, poly in enumerate(polys):
         mpoly = [pointmap[v] for v in poly]
         mdl.faces.append(mpoly)
+        mdl.face_data.append(poly_data[i])

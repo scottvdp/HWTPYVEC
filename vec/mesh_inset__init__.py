@@ -122,24 +122,28 @@ def do_inset(mesh, amount, height, region):
     m.points.pos = [v.co.to_tuple() for v in mesh.vertices]
     for f in selfaces:
         m.faces.append(list(f.vertices))
+        m.face_data.append(f.index)
     orig_numv = len(m.points.pos)
     orig_numf = len(m.faces)
-    model.BevelSelectionInModel(m, m.faces, amount, pitch, True, region)
+    model.BevelSelectionInModel(m, amount, pitch, True, region)
     if len(m.faces) == orig_numf:
         # something went wrong with Bevel - just treat as no-op
         return
     # blender_faces: newfaces but all 4-tuples and no 0
     # in 4th position if a 4-sided poly
     blender_faces = []
+    blender_old_face_index = []
     for i in range(orig_numf, len(m.faces)):
         f = m.faces[i]
         if len(f) == 3:
             blender_faces.append(list(f) + [0])
+            blender_old_face_index.append(m.face_data[i])
         elif len(f) == 4:
             if f[3] == 0:
                 blender_faces.append([f[3], f[0], f[1], f[2]])
             else:
                 blender_faces.append(f)
+            blender_old_face_index.append(m.face_data[i])
     num_new_vertices = len(m.points.pos) - orig_numv
     mesh.vertices.add(num_new_vertices)
     for i in range(orig_numv, len(m.points.pos)):
@@ -148,6 +152,13 @@ def do_inset(mesh, amount, height, region):
     mesh.faces.add(len(blender_faces))
     for i, newf in enumerate(blender_faces):
         mesh.faces[start_faces + i].vertices_raw = newf
+        # copy face attributes from old face that it was derived from
+        bfi = blender_old_face_index[i]
+        if bfi and 0 <= bfi < start_faces:
+            bfacenew = mesh.faces[start_faces + i]
+            bface = mesh.faces[bfi]
+            bfacenew.material_index = bface.material_index
+            bfacenew.use_smooth = bface.use_smooth
     mesh.update(calc_edges=True)
     # remove original faces
     bpy.ops.object.mode_set(mode='EDIT')

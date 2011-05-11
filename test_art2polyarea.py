@@ -220,10 +220,10 @@ class TestArtToPolyAreas(unittest.TestCase):
              (-1.0, -1.0), (5.0, -1.0), (5.0, 2.0), (-1.0, 2.0)])
         self.assertEqual(pas.polyareas[0].poly, [0, 1, 2, 3])
         self.assertEqual(pas.polyareas[0].holes, [[4, 5, 6]])
-        self.assertEqual(pas.polyareas[0].color, (1.0, 0.0, 0.0))
+        self.assertEqual(pas.polyareas[0].data, (1.0, 0.0, 0.0))
         self.assertEqual(pas.polyareas[1].poly, [7, 8, 9, 10])
         self.assertEqual(pas.polyareas[1].holes, [])
-        self.assertEqual(pas.polyareas[1].color, (0.0, 1.0, 0.0))
+        self.assertEqual(pas.polyareas[1].data, (0.0, 1.0, 0.0))
 
 
 if __name__ == "__main__":

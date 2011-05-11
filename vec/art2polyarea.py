@@ -191,6 +191,7 @@ def _SubpathToPolyArea(subpath, options, points, color=(0.0, 0.0, 0.0)):
     For 'EVEN' subdiv_kind, divides lines too.
     Ignores zero-length or near zero-length segments.
     Ensures that face is CCW-oriented.
+    Use the data field of the PolyArea to hold the filling color.
 
     Args:
       subpath: geom.Subpath - the subpath to convert
@@ -205,7 +206,7 @@ def _SubpathToPolyArea(subpath, options, points, color=(0.0, 0.0, 0.0)):
     prev = None
     ans = geom.PolyArea()
     ans.points = points
-    ans.color = color
+    ans.data = color
     for seg in subpath.segments:
         (ty, start, end) = seg[0:3]
         if not prev or prev != start:

@@ -153,14 +153,14 @@ class PolyArea(object):
       points: Points
       poly: list of vertex ids
       holes: list of lists of vertex ids (each a hole in poly)
-      color: (float, float, float)- rgb color used to fill
+      data: any - application data (can hold color, e.g.)
     """
 
-    def __init__(self, points=None, poly=None, holes=None):
+    def __init__(self, points=None, poly=None, holes=None, data=None):
         self.points = points if points else Points()
         self.poly = poly if poly else []
         self.holes = holes if holes else []
-        self.color = (0.0, 0.0, 0.0)
+        self.data = data
 
     def AddHole(self, holepa):
         """Add a PolyArea's poly as a hole of self.
@@ -273,19 +273,21 @@ class Model(object):
     The actual visible part of the geometry are the faces,
     which are n-gons (n>2), specified by a vector of the
     n corner vertices.
-    Faces may also have colors.
+    Faces may also have data associated with them,
+    and the data will be copied into newly created faces
+    from the most likely neighbor faces..
 
     Attributes:
       points: geom.Points - the 3d vertices
       faces: list of list of indices (each a CCW traversal of a face)
-      colors: list of (float, float, float) - if present, is parallel to
-          faces list and gives rgb colors of faces
+      face_data: list of any - if present, is parallel to
+          faces list and holds arbitrary data
     """
 
     def __init__(self):
         self.points = Points()
         self.faces = []
-        self.colors = []
+        self.face_data = []
 
 
 class Art(object):
@@ -331,22 +333,22 @@ black_paint = Paint()
 white_paint = Paint(1.0, 1.0, 1.0)
 
 ColorDict = {
-  'aqua': Paint(0.0, 1.0, 1.0),
-  'black': Paint(0.0, 0.0, 0.0),
-  'blue': Paint(0.0, 0.0, 1.0),
-  'fuchsia': Paint(1.0, 0.0, 1.0),
-  'gray': Paint(0.5, 0.5, 0.5),
-  'green': Paint(0.0, 0.5, 0.0),
-  'lime': Paint(0.0, 1.0, 0.0),
-  'maroon': Paint(0.5, 0.0, 0.0),
-  'navy': Paint(0.0, 0.0, 0.5),
-  'olive': Paint(0.5, 0.5, 0.0),
-  'purple': Paint(0.5, 0.0, 0.5),
-  'red': Paint(1.0, 0.0, 0.0),
-  'silver': Paint(0.75, 0.75, 0.75),
-  'teal': Paint(0.0, 0.5, 0.5),
-  'white': Paint(1.0, 1.0, 1.0),
-  'yellow': Paint(1.0, 1.0, 0.0)
+    'aqua': Paint(0.0, 1.0, 1.0),
+    'black': Paint(0.0, 0.0, 0.0),
+    'blue': Paint(0.0, 0.0, 1.0),
+    'fuchsia': Paint(1.0, 0.0, 1.0),
+    'gray': Paint(0.5, 0.5, 0.5),
+    'green': Paint(0.0, 0.5, 0.0),
+    'lime': Paint(0.0, 1.0, 0.0),
+    'maroon': Paint(0.5, 0.0, 0.0),
+    'navy': Paint(0.0, 0.0, 0.5),
+    'olive': Paint(0.5, 0.5, 0.0),
+    'purple': Paint(0.5, 0.0, 0.5),
+    'red': Paint(1.0, 0.0, 0.0),
+    'silver': Paint(0.75, 0.75, 0.75),
+    'teal': Paint(0.0, 0.5, 0.5),
+    'white': Paint(1.0, 1.0, 1.0),
+    'yellow': Paint(1.0, 1.0, 0.0)
 }
 
 
