@@ -624,6 +624,24 @@ def VecSub(a, b):
     return tuple([a[i] - b[i] for i in range(n)])
 
 
+def VecDot(a, b):
+    """Return the dot product of two vectors.
+
+    Args:
+      a: n-tuple of floats
+      b: n-tuple of floats
+    Returns:
+      n-tuple of floats - dot product of a and b
+    """
+
+    n = len(a)
+    assert(n == len(b))
+    sum = 0.0
+    for i in range(n):
+        sum += a[i] * b[i]
+    return sum
+
+
 def VecLen(a):
     """Return the Euclidean lenght of the argument vector.
 

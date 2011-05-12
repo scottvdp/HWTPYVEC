@@ -328,7 +328,7 @@ def RegionToPolyAreas(faces, points, data):
         elif len(polys) == 1:
             ans.append(geom.PolyArea(points, polys[0], [], poly_data[0]))
         else:
-            outerf = _FindOuterPoly(polys, points)
+            outerf = _FindOuterPoly(polys, points, faces)
             pa = geom.PolyArea(points, polys[outerf], [], poly_data[outerf])
             pa.holes = [polys[i] for i in range(len(polys)) if i != outerf]
             ans.append(pa)
@@ -434,22 +434,36 @@ def _FFGCSearch(findex, faces, face_adj, ftoc, compi, comp):
             _FFGCSearch(otherf, faces, face_adj, ftoc, compi, comp)
 
 
-def _FindOuterPoly(polys, points):
-    """Assuming polys has one that contains the rest, find that one.
+def _FindOuterPoly(polys, points, faces):
+    """Assuming polys has one CCW-oriented face when looking
+    down average normal of faces, return that one.
+
+    Only one of the faces should have a normal whose dot product
+    with the average normal of faces is positive.
 
     Args:
       polys: list of list of int - list of polys given by vertex indices
       points: geom.Points
+      faces: list of list of int - original selected region, used to find
+          average normal
     Returns:
       int - the index in polys of the outermost one
     """
 
     if len(polys) < 2:
         return 0
+    fnorm = (0.0, 0.0, 0.0)
+    for face in faces:
+        if len(face) > 2:
+            fnorm = geom.VecAdd(fnorm, geom.Newell(face, points))
+    if fnorm == (0.0, 0.0, 0.0):
+        return 0
+    # fnorm is really a multiple of the normal, but fine for test below
     for i, poly in enumerate(polys):
-        otherpoly = polys[(i + 1) % len(polys)]
-        if geom.PointInside(points.pos[otherpoly[0]], poly, points) == 1:
-            return i
+        if len(poly) > 2:
+            pnorm = geom.Newell(poly, points)
+            if geom.VecDot(fnorm, pnorm) > 0:
+                return i
     print("whoops, couldn't find an outermost poly")
     return 0
 
