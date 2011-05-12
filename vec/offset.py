@@ -695,6 +695,30 @@ class Offset(object):
         _AddInnerAreas(self, ans)
         return ans
 
+    def MaxAmount(self):
+        """Returns the maximum offset amount possible.
+        Returns:
+          float - maximum amount
+        """
+
+        # Need to do Build on a copy of points
+        # so don't add points that won't be used when
+        # really do a Build with a smaller amount
+        test_points = geom.Points()
+        test_points.AddPoints(self.polyarea.points)
+        save_points = self.polyarea.points
+        self.polyarea.points = test_points
+        self.Build()
+        max_amount = self._MaxTime()
+        self.polyarea.points = save_points
+        return max_amount
+
+    def _MaxTime(self):
+        if self.inneroffsets:
+            return max([o._MaxTime() for o in self.inneroffsets])
+        else:
+            return self.timesofar + self.endtime
+
 
 def _AddInnerAreas(off, polyareas):
     """Add the innermost areas of offset off to polyareas.

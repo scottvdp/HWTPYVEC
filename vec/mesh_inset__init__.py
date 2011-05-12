@@ -19,19 +19,19 @@
 # <pep8 compliant>
 
 bl_info = {
-  "name": "Inset Polygon",
-  "author": "Howard Trickey",
-  "version": (0, 2),
-  "blender": (2, 5, 7),
-  "api": 36147,
-  "location": "View3D > Tools",
-  "description": "Make an inset polygon inside selection.",
-  "warning": "",
-  "wiki_url": \
+    "name": "Inset Polygon",
+    "author": "Howard Trickey",
+    "version": (0, 2),
+    "blender": (2, 5, 7),
+    "api": 36147,
+    "location": "View3D > Tools",
+    "description": "Make an inset polygon inside selection.",
+    "warning": "",
+    "wiki_url": \
       "http://wiki.blender.org/index.php/Extensions:2.5/Py/Scripts/Modeling/Inset-Polygon",
-  "tracker_url": \
+    "tracker_url": \
       "http://projects.blender.org/tracker/index.php?func=detail&aid=27290&group_id=153&atid=468",
-  "category": "Mesh"}
+    "category": "Mesh"}
 
 if "bpy" in locals():
     import imp
@@ -54,24 +54,33 @@ class Inset(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     inset_amount = FloatProperty(name="Amount",
-      description="Distance of inset edges from outer ones",
-      default=0.05,
-      min=0.0,
-      max=1000.0,
-      soft_min=0.0,
-      soft_max=1.0,
-      unit='LENGTH')
+        description="Amount to move inset edges",
+        default=5.0,
+        min=0.0,
+        max=1000.0,
+        soft_min=0.0,
+        soft_max=100.0,
+        unit='LENGTH')
     inset_height = FloatProperty(name="Height",
-      description="Distance to raise inset faces",
-      default=0.0,
-      min=-1000.0,
-      max=1000.0,
-      soft_min=-1.0,
-      soft_max=1.0,
-      unit='LENGTH')
+        description="Amount to raise inset faces",
+        default=0.0,
+        min=-10000.0,
+        max=10000.0,
+        soft_min=-500.0,
+        soft_max=500.0,
+        unit='LENGTH')
     region = BoolProperty(name="Region",
-      description="Inset selection as one region?",
-      default=True)
+        description="Inset selection as one region?",
+        default=True)
+    scale = EnumProperty(name="Scale",
+        description="Scale for amount",
+        items=[
+            ('PERCENT', "Percent",
+                "Percentage of maximum inset amount"),
+            ('ABSOLUTE', "Absolute",
+                "Length in blender units")
+            ],
+        default='PERCENT')
 
     @classmethod
     def poll(cls, context):
@@ -82,6 +91,7 @@ class Inset(bpy.types.Operator):
         layout = self.layout
         box = layout.box()
         box.label("Inset Options")
+        box.prop(self, "scale")
         box.prop(self, "inset_amount")
         box.prop(self, "inset_height")
         box.prop(self, "region")
@@ -100,12 +110,13 @@ class Inset(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='OBJECT')
         obj = bpy.context.active_object
         mesh = obj.data
-        do_inset(mesh, self.inset_amount, self.inset_height, self.region)
+        do_inset(mesh, self.inset_amount, self.inset_height, self.region,
+            self.scale == 'PERCENT')
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.context.user_preferences.edit.use_global_undo = save_global_undo
 
 
-def do_inset(mesh, amount, height, region):
+def do_inset(mesh, amount, height, region, as_percent):
     if amount <= 0.0:
         return
     pitch = math.atan(height / amount)
@@ -125,7 +136,7 @@ def do_inset(mesh, amount, height, region):
         m.face_data.append(f.index)
     orig_numv = len(m.points.pos)
     orig_numf = len(m.faces)
-    model.BevelSelectionInModel(m, amount, pitch, True, region)
+    model.BevelSelectionInModel(m, amount, pitch, True, region, as_percent)
     if len(m.faces) == orig_numf:
         # something went wrong with Bevel - just treat as no-op
         return

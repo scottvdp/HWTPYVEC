@@ -55,7 +55,8 @@ def PolyAreasToModel(polyareas, bevel_amount, bevel_pitch, quadrangulate):
 
 def PolyAreaToModel(m, pa, bevel_amount, bevel_pitch, quadrangulate):
     if bevel_amount > 0.0:
-        BevelPolyAreaInModel(m, pa, bevel_amount, bevel_pitch, quadrangulate)
+        BevelPolyAreaInModel(m, pa, bevel_amount, bevel_pitch, quadrangulate,
+            False)
     elif quadrangulate:
         if len(pa.poly) == 0:
             return
@@ -146,7 +147,7 @@ def _ExtrudePoly(mdl, poly, depth, data, isccw):
 
 
 def BevelPolyAreaInModel(mdl, polyarea,
-    bevel_amount, bevel_pitch, quadrangulate):
+    bevel_amount, bevel_pitch, quadrangulate, as_percent):
     """Bevel the interior of polyarea in model.
 
     This does smart beveling: advancing edges are merged
@@ -162,6 +163,7 @@ def BevelPolyAreaInModel(mdl, polyarea,
       bevel_amount: float - if > 0, amount of bevel
       bevel_pitch: float - if > 0, angle in radians of bevel
       quadrangulate: bool - should n-gons be quadrangulated?
+      as_percent: bool - if True, interpret amount as percent of max
     Side Effects:
       Faces and points are added to model to model the
       bevel and the interior of the polyareas.
@@ -178,6 +180,8 @@ def BevelPolyAreaInModel(mdl, polyarea,
         m.points = pa_rot.points
     vspeed = math.tan(bevel_pitch)
     off = offset.Offset(pa_rot, 0.0, vspeed)
+    if as_percent:
+        bevel_amount = bevel_amount * off.MaxAmount() / 100.0
     off.Build(bevel_amount)
     inner_pas = AddOffsetFacesToModel(m, off, polyarea.data)
     for pa in inner_pas.polyareas:
@@ -238,7 +242,7 @@ def AddOffsetFacesToModel(mdl, off, data=None):
 
 
 def BevelSelectionInModel(mdl, bevel_amount, bevel_pitch, quadrangulate,
-        as_region):
+        as_region, as_percent):
     """Bevel all the faces in the model, perhaps as one region.
 
     If as_region is False, each face is beveled individually,
@@ -254,6 +258,8 @@ def BevelSelectionInModel(mdl, bevel_amount, bevel_pitch, quadrangulate,
       bevel_pitch: float - angle of bevel side
       quadrangulate: bool - should insides be quadrangulated?
       as_region: bool - should faces be merged into regions?
+      as_percent: bool - should amount be interpreted as a percent
+          of the maximum amount (if True) or an absolute amount?
     Side effect:
       Beveling faces will be added to the model
     """
@@ -267,7 +273,7 @@ def BevelSelectionInModel(mdl, bevel_amount, bevel_pitch, quadrangulate,
                 mdl.face_data[f]))
     for pa in pas:
         BevelPolyAreaInModel(mdl, pa,
-            bevel_amount, bevel_pitch, quadrangulate)
+            bevel_amount, bevel_pitch, quadrangulate, as_percent)
 
 
 def RegionToPolyAreas(faces, points, data):

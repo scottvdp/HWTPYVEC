@@ -150,7 +150,7 @@ class TestBevelPolyAreaInModel(unittest.TestCase):
     def testCubeTop(self):
         m = Cube()
         pa = geom.PolyArea(m.points, m.faces[1])
-        model.BevelPolyAreaInModel(m, pa, 0.1, math.pi/4., True)
+        model.BevelPolyAreaInModel(m, pa, 0.1, math.pi/4., True, False)
         self.assertEqual(m.points.pos[8:],
           [(-0.9, -0.9, 1.1), (0.9, -0.9, 1.1), (0.9, 0.9, 1.1), (-0.9, 0.9, 1.1)])
         self.assertEqual(m.faces[6:], [[4, 5, 9, 8], [5, 6, 10, 9],
@@ -159,7 +159,7 @@ class TestBevelPolyAreaInModel(unittest.TestCase):
     def testCubeBottom(self):
         m = Cube()
         pa = geom.PolyArea(m.points, m.faces[0])
-        model.BevelPolyAreaInModel(m, pa, 0.1, math.pi/4., True)
+        model.BevelPolyAreaInModel(m, pa, 0.1, math.pi/4., True, True)
         self.assertEqual(len(m.points.pos), 12)
         self.assertEqual(len(m.faces), 11)
 
