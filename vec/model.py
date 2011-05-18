@@ -307,21 +307,46 @@ def RegionToPolyAreas(faces, points, data):
             if ftoc[f] != c or is_interior_edge[e]:
                 continue
             boundary_edges.add(e)
-            vstobe[vs] = e
+            # vstobe[v] is set of edges leaving v
+            # (could be more than one if boundary touches itself at a vertex)
+            if vs in vstobe:
+                vstobe[vs].append(e)
+            else:
+                vstobe[vs] = [e]
             betodata[(vs, ve)] = data[f]
         polys = []
         poly_data = []
         while boundary_edges:
             e = boundary_edges.pop()
-            ((vstart, ve), _) = edges[e]
+            ((vstart, ve), face_i) = edges[e]
             poly = [vstart, ve]
             datum = betodata[(vstart, ve)]
             while ve != vstart:
                 if ve not in vstobe:
                     print("whoops, couldn't close boundary")
                     break
-                nexte = vstobe[ve]
-                ((_, ve), _) = edges[nexte]
+                nextes = vstobe[ve]
+                if len(nextes) == 1:
+                    nexte = nextes[0]
+                else:
+                    # find a next edge with face index face_i
+                    # TODO: this is not guaranteed to work,
+                    # as continuation edge may have been for a different
+                    # face that is now combined with face_i by erasing
+                    # interior edges. Find a better algorithm here.
+                    nexte = -1
+                    for ne_cand in nextes:
+                        if edges[ne_cand][1] == face_i:
+                            nexte = ne_cand
+                            break
+                    if nexte == -1:
+                        # case mentioned in TODO may have happened;
+                        # just choose any nexte - may mess things up
+                        nexte = nextes[0]
+                ((_, ve), face_i) = edges[nexte]
+                if nexte not in boundary_edges:
+                    print("whoops, nexte not a boundary edge", nexte)
+                    break
                 boundary_edges.remove(nexte)
                 if ve != vstart:
                     poly.append(ve)
