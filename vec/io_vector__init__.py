@@ -204,12 +204,13 @@ def add_colors(mesh, colors):
     rgbtoindex = {}
     matnameprefix = "VImat." + mesh.name + "."
     for i, c in enumerate(colors):
+        print("color for face", i)
         if c not in rgbtoindex:
             matname = matnameprefix + str(len(bpy.data.materials))
             mat = bpy.data.materials.new(matname)
             mat.diffuse_color = c
             mesh.materials.append(mat)
-            cindex = len(bpy.data.materials) - 1
+            cindex = len(mesh.materials) - 1
             rgbtoindex[c] = cindex
         else:
             cindex = rgbtoindex[c]
