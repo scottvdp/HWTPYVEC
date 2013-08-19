@@ -196,7 +196,7 @@ class VectorImporter(bpy.types.Operator):
 
 def add_colors(mesh, colors):
     # assume colors are parallel to faces in mesh
-    if len(colors) < len(mesh.faces):
+    if len(colors) < len(mesh.polygons):
         return
 
     # use rgbtoindex to keep track of colors already
@@ -214,7 +214,7 @@ def add_colors(mesh, colors):
             rgbtoindex[c] = cindex
         else:
             cindex = rgbtoindex[c]
-        mesh.faces[i].material_index = cindex
+        mesh.polygons[i].material_index = cindex
 
 
 def menu_import(self, context):
